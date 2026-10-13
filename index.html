@@ -805,17 +805,70 @@ function habilitarEscaneo(){
   if(!(libro&&mapa&&lotes)) return;
   $('scanLot').disabled=false; $('scanLot').placeholder='Escanea el LOT UID del sobre';
   if($('verdict').textContent.startsWith('Carga')){ $('verdict').textContent='Escanea el sobre'; }
+  // Una pistola lectora es un teclado: si ningún campo tiene el foco, lo que
+  // teclea se pierde y parece que la app "no hace nada".
+  if(document.activeElement===document.body) campoActivo().focus();
 }
+function campoActivo(){ return $('scanObs').disabled ? $('scanLot') : $('scanObs'); }
+
+// Teclas que llegan sin que ningún campo tenga el foco: se redirigen al campo
+// de escaneo que toca, sin perder el primer carácter.
+document.addEventListener('keydown', e=>{
+  const t=e.target;
+  if(t && (t.tagName==='INPUT'||t.tagName==='SELECT'||t.tagName==='TEXTAREA'||t.tagName==='BUTTON')) return;
+  if($('scanLot').disabled) return;
+  if(e.ctrlKey||e.altKey||e.metaKey) return;
+  const campo=campoActivo();
+  campo.focus();
+  if(e.key && e.key.length===1){ campo.value += e.key; e.preventDefault(); marcarTecla(campo); }
+});
+
+// Anti-rebote: 'keydown' y 'change' pueden disparar el mismo código dos veces.
+let _ult={lot:{v:'',t:0}, obs:{v:'',t:0}};
+function yaProcesado(cual,v){
+  const u=_ult[cual], ahora=Date.now();
+  if(u.v===v && ahora-u.t<700) return true;
+  u.v=v; u.t=ahora; return false;
+}
+function logLectura(campo, crudo){
+  const vis=String(crudo).replace(/\n/g,'\\n').replace(/\t/g,'\\t');
+  log(`[${campo}] cruda: "${vis}" (${String(crudo).length} car) → usada: "${normCode(crudo)}"`);
+}
+
+// Si la pistola no manda Enter ni Tab, se detecta la ráfaga de tecleo y se
+// envía sola cuando deja de llegar texto.
+const _raf={};
+function marcarTecla(campo){
+  const id=campo.id, ahora=Date.now();
+  const r=_raf[id]||(_raf[id]={ini:0,n:0,timer:null});
+  if(!r.n) r.ini=ahora;
+  r.n++;
+  clearTimeout(r.timer);
+  r.timer=setTimeout(()=>{
+    const chars=r.n, dur=Date.now()-r.ini;
+    r.n=0;
+    // ráfaga de pistola: >=4 caracteres a menos de 50 ms cada uno
+    if(chars>=4 && dur/chars<50){ if(id==='scanLot') tomarLot(); else tomarObs(); }
+  }, 300);
+}
+['scanLot','scanObs'].forEach(id=>{
+  $(id).addEventListener('input', ()=>marcarTecla($(id)));
+});
 function siguienteEsperado(){ for(const k of orden){ if(!sembrados.has(k)) return k; } return null; }
 function peor(a,b){ const r={ok:0,warn:1,bad:2}; return r[b]>r[a]?b:a; }
 
 let lotActual='';
-$('scanLot').addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); tomarLot(); }});
+$('scanLot').addEventListener('keydown',e=>{ if(e.key==='Enter'||e.key==='Tab'){ e.preventDefault(); tomarLot(); }});
 $('scanLot').addEventListener('change',tomarLot);
 function tomarLot(){
-  const v=normCode($('scanLot').value); if(!v) return;
-  // una sola lectura con los dos códigos: "LOT|OBS", "LOT/OBS", "LOT;OBS"
-  const partes=v.split(/[|;,/]+/).filter(Boolean);
+  const crudo=$('scanLot').value;
+  const v=normCode(crudo); if(!v) return;
+  if(yaProcesado('lot',v)) return;
+  logLectura('LOT UID', crudo);
+  // Lectura combinada con los dos códigos. SOLO se parte en "|": los LOT_UID
+  // de Semilla Nueva contienen "/" (ej. G1423/G1420) y partir ahí convertía
+  // un código válido en dos mitades inventadas.
+  const partes=v.split('|').filter(Boolean);
   if(partes.length===2){
     $('scanLot').value=partes[0]; $('scanObs').disabled=false; $('scanObs').value=partes[1];
     $('subLot').textContent='Lectura combinada: el segundo código se tomó como OBS UNIT.';
@@ -830,9 +883,15 @@ function tomarLot(){
   $('scanObs').disabled=false; $('scanObs').placeholder='Escanea el OBS UNIT ID';
   $('scanObs').value=''; $('scanObs').focus();
 }
-$('scanObs').addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); tomarObs(); }});
+$('scanObs').addEventListener('keydown',e=>{ if(e.key==='Enter'||e.key==='Tab'){ e.preventDefault(); tomarObs(); }});
 $('scanObs').addEventListener('change',tomarObs);
-function tomarObs(){ const v=normCode($('scanObs').value); if(!v) return; evaluar(lotActual,v); }
+function tomarObs(){
+  const crudo=$('scanObs').value;
+  const v=normCode(crudo); if(!v) return;
+  if(yaProcesado('obs',v)) return;
+  logLectura('OBS UNIT', crudo);
+  evaluar(lotActual,v);
+}
 
 function buscarLote(cod){ for(const k of clavesDe(cod)){ if(idxLote.has(k)) return idxLote.get(k); } return null; }
 function buscarFila(cod){ for(const k of clavesDe(cod)){ if(idxObs.has(k)) return idxObs.get(k); } return null; }
@@ -1043,6 +1102,7 @@ function aplicarModo(){
 }
 function aplicarVista(){
   document.body.classList.toggle('campo', campo);
+  if(!$('scanLot').disabled) setTimeout(()=>campoActivo().focus(),0);
   document.body.dataset.zoom = String(zoom);
   $('swCampo').classList.toggle('on', campo);
   $('swCampo').textContent = campo ? 'Modo campo activo' : 'Modo campo';
@@ -1142,11 +1202,19 @@ document.querySelectorAll('[data-cam]').forEach(b=>{ b.onclick=ev=>{ ev.preventD
 function abrirCam(campo){
   if(typeof Html5Qrcode==='undefined'){ alert('El lector de cámara no cargó. Usa la pistola o escribe el código.'); return; }
   campoCam=campo; $('camModal').style.display='flex';
-  qr=new Html5Qrcode('camReader');
+  const fmts = (typeof Html5QrcodeSupportedFormats!=='undefined') ? [
+      Html5QrcodeSupportedFormats.CODE_128, Html5QrcodeSupportedFormats.CODE_39,
+      Html5QrcodeSupportedFormats.CODE_93,  Html5QrcodeSupportedFormats.ITF,
+      Html5QrcodeSupportedFormats.CODABAR,  Html5QrcodeSupportedFormats.EAN_13,
+      Html5QrcodeSupportedFormats.EAN_8,    Html5QrcodeSupportedFormats.UPC_A,
+      Html5QrcodeSupportedFormats.UPC_E,    Html5QrcodeSupportedFormats.QR_CODE
+    ] : undefined;
+  qr=new Html5Qrcode('camReader', fmts?{formatsToSupport:fmts}:undefined);
   Html5Qrcode.getCameras().then(cams=>{
     if(!cams.length){ alert('No se encontró cámara.'); cerrarCam(); return; }
     const tras=cams.find(c=>/back|rear|trasera/i.test(c.label))||cams[cams.length-1];
-    qr.start(tras.id,{fps:10,qrbox:{width:280,height:160}},txt=>{
+    qr.start(tras.id,{fps:10,qrbox:{width:300,height:170}},txt=>{
+      logLectura('cámara', txt);
       $(campoCam).value=txt; const c=campoCam; cerrarCam();
       if(c==='scanLot') tomarLot(); else tomarObs();
     }).catch(e=>{ alert('No se pudo abrir la cámara: '+e); cerrarCam(); });
