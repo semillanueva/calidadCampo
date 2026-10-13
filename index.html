@@ -122,16 +122,19 @@
               align-items:center; justify-content:center; flex-direction:column; padding:10px;
               padding-top:calc(10px + env(safe-area-inset-top,0px));
               padding-bottom:calc(10px + env(safe-area-inset-bottom,0px)); }
-  #camStage { position:relative; width:100%; max-width:720px; flex:1; min-height:0;
-              background:#000; border-radius:8px; overflow:hidden; display:flex;
-              align-items:center; justify-content:center; }
-  #camVideo { width:100%; height:100%; object-fit:cover; display:none; }
+  /* El escenario toma la proporción real del video, así el marco blanco
+     coincide exactamente con el recorte que se manda al decodificador.
+     Con object-fit:cover el video se recortaba por los lados y el marco
+     mentía: lo que veías dentro no era lo que se analizaba. */
+  #camStage { position:relative; width:100%; max-width:760px; max-height:62vh;
+              background:#000; border-radius:8px; overflow:hidden; margin:auto; }
+  #camVideo { position:absolute; inset:0; width:100%; height:100%; object-fit:fill; display:none; }
   #camReader { width:100%; }
-  /* Franja ancha y baja: un código lineal se lee a lo ancho, no en cuadro. */
-  #camGuide { position:absolute; left:6%; right:6%; top:50%; height:21%; transform:translateY(-50%);
-              border:2px solid rgba(255,255,255,.85); border-radius:6px; pointer-events:none; display:none; }
-  #camGuide::after { content:''; position:absolute; left:4%; right:4%; top:50%; height:2px;
+  #camGuide { position:absolute; left:6%; right:6%; top:27.5%; height:45%;
+              border:2px solid rgba(255,255,255,.9); border-radius:6px; pointer-events:none; display:none; }
+  #camGuide::after { content:''; position:absolute; left:3%; right:3%; top:50%; height:2px;
                      background:rgba(255,80,60,.9); }
+  #camGuide.cerca { border-color:#ffd24d; }
   #camInfo { color:#fff; font-size:.88rem; margin:9px 0 7px; text-align:center; min-height:1.2em;
              font-family:ui-monospace,Consolas,monospace; }
   #camCtrls { display:flex; gap:7px; flex-wrap:wrap; justify-content:center; }
@@ -333,6 +336,7 @@
     <button class="camb" id="camTorch">Linterna</button>
     <button class="camb" id="camZoomOut">Zoom &minus;</button>
     <button class="camb" id="camZoomIn">Zoom +</button>
+    <button class="camb" id="camFoto">Tomar foto y leer</button>
     <button class="camb" id="camFlip">Cambiar cámara</button>
     <button class="camb primaria" id="camCerrar">Cerrar</button>
   </div>
@@ -1275,29 +1279,40 @@ async function iniciarNativo(){
   log('Cámara:', st.width+'x'+st.height, '| track:', camTrack.label);
   prepararControles();
 
+  // El escenario copia la proporción del video para que el marco no mienta.
+  const ajustar=()=>{ if(v.videoWidth&&v.videoHeight)
+    $('camStage').style.aspectRatio = v.videoWidth+' / '+v.videoHeight; };
+  v.addEventListener('loadedmetadata',ajustar); ajustar();
+
+  // Algunas cámaras publican torch/zoom recién cuando el track lleva un rato vivo.
+  setTimeout(prepararControles,900);
+  setTimeout(()=>{ if(camZoom && camZoom.max>=2 && camZoom.val<2){
+      camZoom.val=Math.min(2,camZoom.max); aplicar({zoom:camZoom.val}); } },1100);
+
   const cv=document.createElement('canvas'), ctx=cv.getContext('2d',{willReadFrequently:true});
-  let ultimoAviso=0;
+  let ultimoAviso=0, alterna=0;
   const tick = async () => {
     if(!camStream) return;
-    try{
-      if(v.readyState>=2){
-        // Se recorta solo la franja central: menos ruido y más rápido,
-        // sin perder resolución porque se toma del cuadro completo.
-        const w=v.videoWidth, h=v.videoHeight;
-        if(w&&h){
-          const bw=Math.round(w*0.88), bh=Math.round(h*0.30);
+    if(v.readyState>=2 && v.videoWidth){
+      const w=v.videoWidth, h=v.videoHeight;
+      let codigos=[];
+      // Se alterna entre la franja recortada y el cuadro completo. Antes el
+      // recorte y el cuadro iban en el mismo try: si el recorte lanzaba, el
+      // cuadro completo nunca se intentaba.
+      if(++alterna % 2){
+        try{
+          const bw=Math.round(w*0.88), bh=Math.round(h*0.45);
           const bx=Math.round((w-bw)/2), by=Math.round((h-bh)/2);
           if(cv.width!==bw||cv.height!==bh){ cv.width=bw; cv.height=bh; }
           ctx.drawImage(v,bx,by,bw,bh,0,0,bw,bh);
-          let codigos = await camDetector.detect(cv);
-          // Si en la franja no hay nada, se prueba el cuadro completo.
-          if(!codigos.length) codigos = await camDetector.detect(v);
-          if(codigos.length) recibirCam(codigos[0].rawValue, codigos[0].format);
-          else if(Date.now()-ultimoAviso>4000){ ultimoAviso=Date.now();
-            camInfo('Buscando… acerca o aleja hasta que el código llene la franja'); }
-        }
+          codigos = await camDetector.detect(cv);
+        }catch(e){}
       }
-    }catch(e){ /* un frame fallido no detiene el bucle */ }
+      if(!codigos.length){ try{ codigos = await camDetector.detect(v); }catch(e){} }
+      if(codigos.length) recibirCam(codigos[0].rawValue, codigos[0].format);
+      else if(Date.now()-ultimoAviso>3500){ ultimoAviso=Date.now();
+        camInfo(`Buscando… el código debe llenar el ancho del marco (${w}×${h})`); }
+    }
     camLoop = requestAnimationFrame(tick);
   };
   camLoop = requestAnimationFrame(tick);
@@ -1305,7 +1320,9 @@ async function iniciarNativo(){
 
 function prepararControles(){
   const caps = (camTrack && camTrack.getCapabilities) ? camTrack.getCapabilities() : {};
-  $('camTorch').disabled = !('torch' in caps);
+  // Varios Android no declaran 'torch' pero sí lo aceptan, así que el botón
+  // queda habilitado y se avisa solo si applyConstraints falla de verdad.
+  $('camTorch').disabled = !camTrack;
   const hayZoom = ('zoom' in caps);
   $('camZoomIn').disabled = !hayZoom; $('camZoomOut').disabled = !hayZoom;
   if(hayZoom){ const st=camTrack.getSettings(); camZoom={min:caps.zoom.min,max:caps.zoom.max,
@@ -1320,7 +1337,10 @@ async function aplicar(constraint){
 }
 $('camTorch').onclick = async ()=>{
   const on = !$('camTorch').classList.contains('on');
-  await aplicar({torch:on}); $('camTorch').classList.toggle('on',on);
+  try{ await camTrack.applyConstraints({advanced:[{torch:on}]});
+       $('camTorch').classList.toggle('on',on); }
+  catch(e){ camInfo('Esta cámara no deja encender la linterna desde el navegador.');
+            $('camTorch').disabled=true; log('torch rechazado:',e&&e.message); }
 };
 $('camZoomIn').onclick  = async ()=>{ if(!camZoom) return;
   camZoom.val=Math.min(camZoom.max,camZoom.val+camZoom.paso*2); await aplicar({zoom:camZoom.val});
@@ -1328,6 +1348,27 @@ $('camZoomIn').onclick  = async ()=>{ if(!camZoom) return;
 $('camZoomOut').onclick = async ()=>{ if(!camZoom) return;
   camZoom.val=Math.max(camZoom.min,camZoom.val-camZoom.paso*2); await aplicar({zoom:camZoom.val});
   camInfo('Zoom '+camZoom.val.toFixed(1)+'x'); };
+// La vista previa va a 1080p, pero la foto fija sale a la resolución del
+// sensor (varios megapíxeles). Para un código pequeño o lejano eso es la
+// diferencia entre leerlo y no leerlo.
+$('camFoto').onclick = async ()=>{
+  if(!camTrack || !camDetector){ camInfo('La foto solo funciona con el motor nativo.'); return; }
+  camInfo('Tomando foto…');
+  try{
+    let bmp=null;
+    if('ImageCapture' in window){
+      const ic=new window.ImageCapture(camTrack);
+      try{ bmp = await createImageBitmap(await ic.takePhoto()); }
+      catch(e){ bmp = await ic.grabFrame(); }
+    }
+    if(!bmp){ const v=$('camVideo'); bmp = await createImageBitmap(v); }
+    log('Foto fija:', bmp.width+'x'+bmp.height);
+    const codigos = await camDetector.detect(bmp);
+    if(codigos.length) recibirCam(codigos[0].rawValue, codigos[0].format+' (foto)');
+    else camInfo(`Nada en la foto de ${bmp.width}×${bmp.height}. Acerca más o enciende la linterna.`);
+  }catch(e){ camInfo('No se pudo tomar la foto: '+(e&&e.message)); log('Foto falló:',e&&e.message); }
+};
+
 $('camFlip').onclick = async ()=>{
   camFacing = camFacing==='environment'?'user':'environment';
   const c=campoCam; pararCam(); $('camModal').style.display='flex'; campoCam=c;
