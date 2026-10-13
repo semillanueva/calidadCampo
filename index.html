@@ -118,9 +118,28 @@
   .alerta.bad { border-left-color:var(--bad); background:var(--badbg); }
   .alerta.ok { border-left-color:var(--ok); background:var(--okbg); }
 
-  #camModal { position:fixed; inset:0; background:rgba(0,0,0,.85); z-index:999; display:none;
-              align-items:center; justify-content:center; flex-direction:column; padding:16px; }
-  #camReader { width:100%; max-width:420px; background:#000; border-radius:8px; overflow:hidden; }
+  #camModal { position:fixed; inset:0; background:#000; z-index:999; display:none;
+              align-items:center; justify-content:center; flex-direction:column; padding:10px;
+              padding-top:calc(10px + env(safe-area-inset-top,0px));
+              padding-bottom:calc(10px + env(safe-area-inset-bottom,0px)); }
+  #camStage { position:relative; width:100%; max-width:720px; flex:1; min-height:0;
+              background:#000; border-radius:8px; overflow:hidden; display:flex;
+              align-items:center; justify-content:center; }
+  #camVideo { width:100%; height:100%; object-fit:cover; display:none; }
+  #camReader { width:100%; }
+  /* Franja ancha y baja: un código lineal se lee a lo ancho, no en cuadro. */
+  #camGuide { position:absolute; left:6%; right:6%; top:50%; height:21%; transform:translateY(-50%);
+              border:2px solid rgba(255,255,255,.85); border-radius:6px; pointer-events:none; display:none; }
+  #camGuide::after { content:''; position:absolute; left:4%; right:4%; top:50%; height:2px;
+                     background:rgba(255,80,60,.9); }
+  #camInfo { color:#fff; font-size:.88rem; margin:9px 0 7px; text-align:center; min-height:1.2em;
+             font-family:ui-monospace,Consolas,monospace; }
+  #camCtrls { display:flex; gap:7px; flex-wrap:wrap; justify-content:center; }
+  .camb { background:#1e1e1e; color:#fff; border:1px solid #555; border-radius:7px;
+          padding:10px 14px; font-size:.86rem; cursor:pointer; }
+  .camb.on { background:#b8860b; border-color:#b8860b; }
+  .camb.primaria { background:var(--accent); border-color:var(--accent); font-weight:700; }
+  .camb:disabled { opacity:.4; }
   details.diag { margin-top:10px; font-size:.82rem; }
   details.diag pre { background:#1a1a17; color:#74c69d; padding:10px; border-radius:6px;
                      font-size:11px; overflow:auto; max-height:280px; white-space:pre-wrap; }
@@ -304,8 +323,19 @@
 </div>
 
 <div id="camModal">
-  <div id="camReader"></div>
-  <button class="btn-load" id="camCerrar" style="margin-top:14px">Cerrar cámara</button>
+  <div id="camStage">
+    <video id="camVideo" playsinline muted></video>
+    <div id="camGuide"></div>
+    <div id="camReader"></div>
+  </div>
+  <div id="camInfo">Iniciando cámara…</div>
+  <div id="camCtrls">
+    <button class="camb" id="camTorch">Linterna</button>
+    <button class="camb" id="camZoomOut">Zoom &minus;</button>
+    <button class="camb" id="camZoomIn">Zoom +</button>
+    <button class="camb" id="camFlip">Cambiar cámara</button>
+    <button class="camb primaria" id="camCerrar">Cerrar</button>
+  </div>
 </div>
 
 <script>
@@ -1195,33 +1225,165 @@ $('btnLimpiarTodo').onclick=()=>{ if(!confirm('¿Borrar archivos, historial y av
   localStorage.removeItem(LS); location.reload(); };
 
 /* ============================================================
-   CÁMARA (respaldo si no hay pistola lectora)
+   CÁMARA
+   Chrome en Android expone el mismo motor nativo (ML Kit) que usan las apps
+   de escáner a través de BarcodeDetector. ZXing compilado a JavaScript, que
+   es lo que trae html5-qrcode, falla mucho con códigos lineales. Se usa
+   BarcodeDetector cuando existe y html5-qrcode solo como respaldo.
    ============================================================ */
-let qr=null, campoCam=null;
+const FORMATOS_1D=['code_128','code_39','code_93','codabar','itf','ean_13','ean_8','upc_a','upc_e','qr_code'];
+let camStream=null, camTrack=null, camDetector=null, camLoop=null, camQr=null;
+let campoCam=null, camUltima={v:'',t:0}, camFacing='environment', camZoom=null;
+
 document.querySelectorAll('[data-cam]').forEach(b=>{ b.onclick=ev=>{ ev.preventDefault(); abrirCam(b.dataset.cam); }; });
-function abrirCam(campo){
-  if(typeof Html5Qrcode==='undefined'){ alert('El lector de cámara no cargó. Usa la pistola o escribe el código.'); return; }
-  campoCam=campo; $('camModal').style.display='flex';
-  const fmts = (typeof Html5QrcodeSupportedFormats!=='undefined') ? [
-      Html5QrcodeSupportedFormats.CODE_128, Html5QrcodeSupportedFormats.CODE_39,
-      Html5QrcodeSupportedFormats.CODE_93,  Html5QrcodeSupportedFormats.ITF,
-      Html5QrcodeSupportedFormats.CODABAR,  Html5QrcodeSupportedFormats.EAN_13,
-      Html5QrcodeSupportedFormats.EAN_8,    Html5QrcodeSupportedFormats.UPC_A,
-      Html5QrcodeSupportedFormats.UPC_E,    Html5QrcodeSupportedFormats.QR_CODE
-    ] : undefined;
-  qr=new Html5Qrcode('camReader', fmts?{formatsToSupport:fmts}:undefined);
-  Html5Qrcode.getCameras().then(cams=>{
-    if(!cams.length){ alert('No se encontró cámara.'); cerrarCam(); return; }
-    const tras=cams.find(c=>/back|rear|trasera/i.test(c.label))||cams[cams.length-1];
-    qr.start(tras.id,{fps:10,qrbox:{width:300,height:170}},txt=>{
-      logLectura('cámara', txt);
-      $(campoCam).value=txt; const c=campoCam; cerrarCam();
-      if(c==='scanLot') tomarLot(); else tomarObs();
-    }).catch(e=>{ alert('No se pudo abrir la cámara: '+e); cerrarCam(); });
-  }).catch(e=>{ alert('Sin permiso de cámara: '+e); cerrarCam(); });
+
+function camInfo(t){ $('camInfo').textContent=t; }
+
+async function abrirCam(campo){
+  campoCam=campo; camUltima={v:'',t:0};
+  $('camModal').style.display='flex';
+  const nativo = ('BarcodeDetector' in window);
+  if(nativo){
+    try{ await iniciarNativo(); return; }
+    catch(e){ log('BarcodeDetector falló:', e&&e.message); camInfo('Motor nativo no disponible, usando respaldo…'); }
+  } else {
+    log('BarcodeDetector no existe en este navegador: se usa html5-qrcode.');
+  }
+  iniciarRespaldo();
 }
-function cerrarCam(){ $('camModal').style.display='none';
-  if(qr){ qr.stop().then(()=>qr.clear()).catch(()=>{}); qr=null; } }
+
+async function iniciarNativo(){
+  const soportados = await window.BarcodeDetector.getSupportedFormats();
+  const usar = FORMATOS_1D.filter(f=>soportados.includes(f));
+  if(!usar.length) throw new Error('sin formatos 1D');
+  camDetector = new window.BarcodeDetector({formats:usar});
+  log('Motor nativo BarcodeDetector. Formatos:', usar.join(','));
+
+  // Resolución alta: un código lineal necesita píxeles a lo ancho. A 640px
+  // las barras finas se funden y no decodifica nada.
+  camStream = await navigator.mediaDevices.getUserMedia({ video:{
+    facingMode:{ideal:camFacing}, width:{ideal:1920}, height:{ideal:1080},
+    advanced:[{focusMode:'continuous'}]
+  }, audio:false });
+
+  const v=$('camVideo');
+  v.srcObject=camStream; v.style.display='block'; $('camGuide').style.display='block';
+  await v.play();
+  camTrack = camStream.getVideoTracks()[0];
+  const st = camTrack.getSettings ? camTrack.getSettings() : {};
+  camInfo(`Listo — ${st.width||'?'}×${st.height||'?'} · apunta el código dentro de la franja`);
+  log('Cámara:', st.width+'x'+st.height, '| track:', camTrack.label);
+  prepararControles();
+
+  const cv=document.createElement('canvas'), ctx=cv.getContext('2d',{willReadFrequently:true});
+  let ultimoAviso=0;
+  const tick = async () => {
+    if(!camStream) return;
+    try{
+      if(v.readyState>=2){
+        // Se recorta solo la franja central: menos ruido y más rápido,
+        // sin perder resolución porque se toma del cuadro completo.
+        const w=v.videoWidth, h=v.videoHeight;
+        if(w&&h){
+          const bw=Math.round(w*0.88), bh=Math.round(h*0.30);
+          const bx=Math.round((w-bw)/2), by=Math.round((h-bh)/2);
+          if(cv.width!==bw||cv.height!==bh){ cv.width=bw; cv.height=bh; }
+          ctx.drawImage(v,bx,by,bw,bh,0,0,bw,bh);
+          let codigos = await camDetector.detect(cv);
+          // Si en la franja no hay nada, se prueba el cuadro completo.
+          if(!codigos.length) codigos = await camDetector.detect(v);
+          if(codigos.length) recibirCam(codigos[0].rawValue, codigos[0].format);
+          else if(Date.now()-ultimoAviso>4000){ ultimoAviso=Date.now();
+            camInfo('Buscando… acerca o aleja hasta que el código llene la franja'); }
+        }
+      }
+    }catch(e){ /* un frame fallido no detiene el bucle */ }
+    camLoop = requestAnimationFrame(tick);
+  };
+  camLoop = requestAnimationFrame(tick);
+}
+
+function prepararControles(){
+  const caps = (camTrack && camTrack.getCapabilities) ? camTrack.getCapabilities() : {};
+  $('camTorch').disabled = !('torch' in caps);
+  const hayZoom = ('zoom' in caps);
+  $('camZoomIn').disabled = !hayZoom; $('camZoomOut').disabled = !hayZoom;
+  if(hayZoom){ const st=camTrack.getSettings(); camZoom={min:caps.zoom.min,max:caps.zoom.max,
+    paso:caps.zoom.step||((caps.zoom.max-caps.zoom.min)/10), val:st.zoom||caps.zoom.min}; }
+  else camZoom=null;
+  $('camTorch').classList.remove('on');
+}
+async function aplicar(constraint){
+  if(!camTrack) return;
+  try{ await camTrack.applyConstraints({advanced:[constraint]}); }
+  catch(e){ log('No se pudo aplicar', JSON.stringify(constraint), e&&e.message); }
+}
+$('camTorch').onclick = async ()=>{
+  const on = !$('camTorch').classList.contains('on');
+  await aplicar({torch:on}); $('camTorch').classList.toggle('on',on);
+};
+$('camZoomIn').onclick  = async ()=>{ if(!camZoom) return;
+  camZoom.val=Math.min(camZoom.max,camZoom.val+camZoom.paso*2); await aplicar({zoom:camZoom.val});
+  camInfo('Zoom '+camZoom.val.toFixed(1)+'x'); };
+$('camZoomOut').onclick = async ()=>{ if(!camZoom) return;
+  camZoom.val=Math.max(camZoom.min,camZoom.val-camZoom.paso*2); await aplicar({zoom:camZoom.val});
+  camInfo('Zoom '+camZoom.val.toFixed(1)+'x'); };
+$('camFlip').onclick = async ()=>{
+  camFacing = camFacing==='environment'?'user':'environment';
+  const c=campoCam; pararCam(); $('camModal').style.display='flex'; campoCam=c;
+  try{ await iniciarNativo(); }catch(e){ iniciarRespaldo(); }
+};
+
+function iniciarRespaldo(){
+  if(typeof Html5Qrcode==='undefined'){ camInfo('No hay lector disponible en este navegador.'); return; }
+  $('camVideo').style.display='none'; $('camGuide').style.display='none';
+  const fmts=(typeof Html5QrcodeSupportedFormats!=='undefined')?[
+    Html5QrcodeSupportedFormats.CODE_128, Html5QrcodeSupportedFormats.CODE_39,
+    Html5QrcodeSupportedFormats.CODE_93,  Html5QrcodeSupportedFormats.ITF,
+    Html5QrcodeSupportedFormats.CODABAR,  Html5QrcodeSupportedFormats.EAN_13,
+    Html5QrcodeSupportedFormats.EAN_8,    Html5QrcodeSupportedFormats.UPC_A,
+    Html5QrcodeSupportedFormats.UPC_E,    Html5QrcodeSupportedFormats.QR_CODE]:undefined;
+  camQr=new Html5Qrcode('camReader',{ formatsToSupport:fmts,
+    experimentalFeatures:{ useBarCodeDetectorIfSupported:true } });
+  camQr.start({facingMode:'environment'},
+    { fps:10, qrbox:(w,h)=>({width:Math.floor(w*0.9),height:Math.floor(h*0.35)}),
+      videoConstraints:{ facingMode:'environment', width:{ideal:1920}, height:{ideal:1080} } },
+    (txt,res)=>recibirCam(txt,(res&&res.result&&res.result.format&&res.result.format.formatName)||''),
+    ()=>{}
+  ).then(()=>camInfo('Respaldo activo — apunta el código')).catch(e=>camInfo('No se pudo abrir la cámara: '+e));
+}
+
+function recibirCam(txt, formato){
+  const ahora=Date.now();
+  if(txt===camUltima.v && ahora-camUltima.t<1800) return;
+  camUltima={v:txt,t:ahora};
+  logLectura('cámara'+(formato?' '+formato:''), txt);
+  if(navigator.vibrate) navigator.vibrate(70);
+
+  const destino = campoCam || campoActivo().id;
+  $(destino).value = txt;
+  camInfo(`✓ ${formato||''} ${txt}`);
+  if(destino==='scanLot'){
+    tomarLot();
+    // La cámara sigue abierta: el siguiente código es el OBS UNIT del mismo sobre.
+    campoCam = $('scanObs').disabled ? 'scanLot' : 'scanObs';
+    setTimeout(()=>camInfo(campoCam==='scanObs'?'Ahora escanea el OBS UNIT ID':'Escanea el LOT UID'),900);
+  } else {
+    tomarObs();
+    campoCam='scanLot';
+    setTimeout(()=>camInfo('Siguiente sobre: escanea el LOT UID'),900);
+  }
+}
+
+function pararCam(){
+  if(camLoop){ cancelAnimationFrame(camLoop); camLoop=null; }
+  if(camStream){ camStream.getTracks().forEach(t=>t.stop()); camStream=null; camTrack=null; }
+  const v=$('camVideo'); if(v){ v.srcObject=null; v.style.display='none'; }
+  $('camGuide').style.display='none';
+  if(camQr){ const q=camQr; camQr=null; q.stop().then(()=>q.clear()).catch(()=>{}); }
+  $('camModal').style.display='none';
+}
+function cerrarCam(){ pararCam(); campoCam=null; if(!$('scanLot').disabled) campoActivo().focus(); }
 $('camCerrar').onclick=cerrarCam;
 
 restaurar();
