@@ -124,6 +124,51 @@
   details.diag { margin-top:10px; font-size:.82rem; }
   details.diag pre { background:#1a1a17; color:#74c69d; padding:10px; border-radius:6px;
                      font-size:11px; overflow:auto; max-height:280px; white-space:pre-wrap; }
+
+  /* ===== Barra fija y modo campo (tablet) ===== */
+  .topbar { position:sticky; top:env(safe-area-inset-top,0px); z-index:50; background:var(--card);
+            border-bottom:1px solid var(--line); padding:8px 14px; display:flex; gap:10px;
+            align-items:center; flex-wrap:wrap; box-shadow:0 1px 4px rgba(0,0,0,.06); }
+  .topbar h1 { font-size:1rem; margin:0; flex:1; min-width:140px; }
+  .chip { font-size:.72rem; padding:3px 9px; border-radius:11px; background:var(--graybg); color:#444; }
+  .chip.ok { background:var(--okbg); color:var(--ok); font-weight:600; }
+  .chip.bad { background:var(--badbg); color:var(--bad); font-weight:600; }
+  .chip.warn { background:var(--amberbg); color:var(--amber); font-weight:600; }
+  .sw { display:flex; align-items:center; gap:6px; font-size:.78rem; font-weight:600; color:var(--accent);
+        border:1.5px solid var(--accent); border-radius:16px; padding:4px 11px; cursor:pointer; background:#fff; }
+  .sw.on { background:var(--accent); color:#fff; }
+  .zoomer { display:flex; gap:0; border:1px solid var(--line); border-radius:6px; overflow:hidden; }
+  .zoomer button { border:0; background:#fff; padding:4px 11px; font-size:.85rem; cursor:pointer;
+                   border-right:1px solid var(--line); }
+  .zoomer button:last-child { border-right:0; }
+
+  body.campo #secCarga, body.campo #histFull, body.campo .solo-escritorio { display:none !important; }
+  body.campo .container { padding:8px 10px 40px; max-width:100%; }
+  body.campo h2 { font-size:.85rem; margin:.7em 0 .3em; }
+  body.campo .verdict { font-size:1.35rem; padding:12px; margin:10px 0; }
+  body.campo .verdict small { font-size:.78rem; margin-top:3px; }
+  body.campo .scan-box { padding:9px 11px; min-width:210px; }
+  body.campo .scan-box label { font-size:.8rem; margin-bottom:3px; }
+  body.campo .scan-box input { padding:9px 10px; font-size:1.05rem; }
+  body.campo .scan-row { gap:10px; }
+  body.campo .panel { gap:10px; }
+  body.campo .panel > div { padding:8px 10px; min-width:200px; }
+  body.campo .kv { font-size:.8rem; gap:2px 8px; }
+  body.campo .panel h3 { font-size:.8rem; margin-bottom:4px; }
+  body.campo .summary .box { padding:5px 11px; min-width:66px; }
+  body.campo .summary .n { font-size:1.1rem; }
+  body.campo .modo-bar button { padding:6px; font-size:.78rem; }
+  body.campo .mapa-wrap { padding:6px; }
+
+  /* zoom del mapa: una finca trae 18 plots por faja y no caben a tamaño normal */
+  .mapa-grid { --cw:78px; --cf:.66rem; --cp:.76rem; }
+  body[data-zoom="0"] .mapa-grid { --cw:48px; --cf:.55rem; --cp:.62rem; }
+  body[data-zoom="2"] .mapa-grid { --cw:100px; --cf:.74rem; --cp:.86rem; }
+  .mcell { font-size:var(--cf); }
+  .mcell .pc { font-size:var(--cp); }
+  body[data-zoom="0"] .mcell { min-height:38px; padding:2px; }
+  body[data-zoom="0"] .mcell .su { display:none; }
+
   @media (max-width:640px){
     .container{padding:12px;}
     .verdict{font-size:1.25rem;padding:16px;}
@@ -132,11 +177,17 @@
 </style>
 </head>
 <body>
+<div class="topbar">
+  <h1>Verificación de Siembra</h1>
+  <span class="chip" id="chipArch">sin archivos</span>
+  <button class="sw" id="swCampo">Modo campo</button>
+</div>
+
 <div class="container">
 
-<h1>Verificación de Siembra en Campo</h1>
-<p class="hint">Sin conexión a BMS. La verificación es <b>GID del lote contra GID del plot</b>: el catálogo de lotes dice qué GID trae el LOT_UID y el libro de campo dice qué GID espera el OBS_UNIT_ID. Los archivos quedan guardados en la tablet.</p>
+<p class="hint solo-escritorio">Sin conexión a BMS. La verificación es <b>GID del lote contra GID del plot</b>: el catálogo de lotes dice qué GID trae el LOT_UID y el libro de campo dice qué GID espera el OBS_UNIT_ID. Los archivos quedan guardados en la tablet.</p>
 
+<section id="secCarga">
 <h2>1. Cargar archivos</h2>
 <div class="loaders">
   <div>
@@ -183,6 +234,7 @@
   <button class="act" id="btnLimpiarTodo">Borrar todo lo cargado</button>
 </div>
 <div id="cruceResumen"></div>
+</section>
 
 <h2>2. Escaneo</h2>
 <div class="modo-bar">
@@ -221,6 +273,7 @@
 <div class="toolbar">
   <span class="counts" id="progreso">&mdash;</span>
   <button class="act" id="btnVoltear">Voltear vista</button>
+  <span class="zoomer"><button id="zOut" title="Más chico">&minus;</button><button id="zIn" title="Más grande">+</button></span>
 </div>
 <div class="mapa-wrap"><div class="mapa-grid" id="mapaGrid"><span class="hint">Carga el mapa.</span></div></div>
 
@@ -236,7 +289,7 @@
   <button class="act" id="btnExportPend">Exportar pendientes (CSV)</button>
   <button class="act" id="btnClear">Limpiar historial</button>
 </div>
-<div class="table-wrap">
+<div class="table-wrap" id="histFull">
   <table id="histTable">
     <thead><tr>
       <th>Hora</th><th>LOT UID</th><th>GID lote</th><th>OBS UNIT ID</th><th>GID plot</th>
@@ -285,13 +338,13 @@ function normLocal(s){ return normLoose(String(s||'').replace(/\([^)]*\)\s*$/,''
 let libro=null, lotes=null, mapa=null;
 let idxObs=new Map(), idxPlotLibro=new Map(), idxLote=new Map(), idxPlotMapa=new Map(), idxGidLote=new Map();
 let orden=[], historial=[], sembrados=new Map(), errores=new Set();
-let modo='libre', volteado=false, locSel='';
+let modo='libre', volteado=false, locSel='', campo=false, zoom=1;
 let _wbLibro=null, _wbLotes=null, _wbMapa=null;
 
 const LS='siembraCampo_v2';
 function guardar(){
   try{ localStorage.setItem(LS, JSON.stringify({libro,lotes,mapa,historial,
-        sembrados:[...sembrados], errores:[...errores], modo, locSel})); }
+        sembrados:[...sembrados], errores:[...errores], modo, locSel, campo, zoom})); }
   catch(e){ log('localStorage lleno o bloqueado:', e.message); }
 }
 function restaurar(){
@@ -301,11 +354,12 @@ function restaurar(){
     libro=d.libro||null; lotes=d.lotes||null; mapa=d.mapa||null;
     historial=d.historial||[]; sembrados=new Map(d.sembrados||[]);
     errores=new Set(d.errores||[]); modo=d.modo||'libre'; locSel=d.locSel||'';
+    campo=!!d.campo; zoom=(d.zoom==null?1:d.zoom);
     if(libro){ reindexarLibro(); mostrarMapeo('libro'); mostrarLocalidades(); estadoLibro(); }
     if(lotes){ reindexarLotes(); mostrarMapeo('lotes'); estadoLotes(); }
     if(mapa){ reindexarMapa(); estadoMapa(); }
     if(libro&&mapa) cruzar(true);
-    pintarMapa(); pintarHistorial(); aplicarModo(); revisarListo(); habilitarEscaneo();
+    aplicarVista(); pintarMapa(); pintarHistorial(); aplicarModo(); revisarListo(); habilitarEscaneo(); chipArchivos();
   }catch(e){ log('Error al restaurar:', e.message); }
 }
 
@@ -488,11 +542,14 @@ function estadoLotes(){
   const falta=[];
   if(lotes.cols.lot==null) falta.push('LOT_UID');
   if(lotes.cols.gid==null) falta.push('GID');
+  const d=diasDesde(lotes.cargadoEn);
   $('statusLotes').innerHTML = n
     ? `<span class="${falta.length?'hl-bad':'hl-ok'}">${n} lotes.</span>` +
-      (falta.length?` <span class="hl-bad">Falta asignar: ${falta.join(', ')}</span>`:'')
+      (falta.length?` <span class="hl-bad">Falta asignar: ${falta.join(', ')}</span>`:'') +
+      (d!=null ? `<br><span class="${d>=7?'hl-warn':''}">Cargado hace ${d===0?'menos de un día':d+' día'+(d===1?'':'s')}.` +
+        (d>=7?' Los lotes creados en BMS después de ese export no están aquí: vuelve a exportarlo antes de salir.':'') + '</span>' : '')
     : '<span class="hl-bad">No se leyeron lotes.</span>';
-  revisarListo();
+  revisarListo(); chipArchivos();
 }
 
 /* ---- mapeo manual de columnas ---- */
@@ -894,8 +951,9 @@ function pintarMapa(){
   const cont=$('mapaGrid');
   if(!mapa||!mapa.fajas.length){ cont.innerHTML='<span class="hint">Carga el mapa.</span>'; return; }
   const maxP=Math.max(...mapa.fajas.map(f=>f.plots.length));
-  cont.style.gridTemplateColumns=`46px repeat(${maxP}, minmax(78px,1fr))`;
-  cont.style.minWidth=(46+maxP*80)+'px';
+  const cw = zoom===0?48:zoom===2?100:78;
+  cont.style.gridTemplateColumns=`${zoom===0?34:46}px repeat(${maxP}, minmax(${cw}px,1fr))`;
+  cont.style.minWidth=((zoom===0?34:46)+maxP*(cw+3))+'px';
   const esperado=siguienteEsperado();
 
   let html='';
@@ -983,6 +1041,30 @@ function aplicarModo(){
     : 'La app espera el siguiente plot del serpentín y marca como error cualquier sobre fuera de orden.';
   pintarMapa(); guardar();
 }
+function aplicarVista(){
+  document.body.classList.toggle('campo', campo);
+  document.body.dataset.zoom = String(zoom);
+  $('swCampo').classList.toggle('on', campo);
+  $('swCampo').textContent = campo ? 'Modo campo activo' : 'Modo campo';
+  pintarMapa(); guardar();
+}
+// Días desde que se cargó un archivo. El catálogo de lotes es el único que
+// envejece: LOT_UID→GID nunca cambia, pero los lotes creados DESPUÉS del
+// export no existen en el snapshot y rebotarían como error.
+function diasDesde(ts){ return ts ? Math.floor((Date.now()-ts)/86400000) : null; }
+function chipArchivos(){
+  const c=$('chipArch'); if(!c) return;
+  const falta=[]; if(!libro) falta.push('libro'); if(!lotes) falta.push('lotes'); if(!mapa) falta.push('mapa');
+  if(falta.length){ c.className='chip bad'; c.textContent='falta: '+falta.join(', '); return; }
+  const d=diasDesde(lotes.cargadoEn);
+  const sitio = (mapa.loc||mapa.estudio||'').slice(0,22);
+  if(d!=null && d>=7){ c.className='chip warn'; c.textContent=`${sitio} · catálogo de ${d} días`; }
+  else { c.className='chip ok'; c.textContent=`${sitio} · ${mapa.plots.length} plots`; }
+}
+$('swCampo').onclick=()=>{ campo=!campo; aplicarVista(); };
+$('zOut').onclick=()=>{ zoom=Math.max(0,zoom-1); aplicarVista(); };
+$('zIn').onclick =()=>{ zoom=Math.min(2,zoom+1); aplicarVista(); };
+
 $('modoLibre').onclick=()=>{ modo='libre'; aplicarModo(); };
 $('modoSec').onclick=()=>{ modo='secuencia'; aplicarModo(); };
 $('btnVoltear').onclick=()=>{ volteado=!volteado; pintarMapa(); };
@@ -1009,9 +1091,10 @@ $('fileLibro').onchange=e=>{
 };
 function cargarHojaLibro(nombre){
   libro=construirTabla(hojaAFilas(_wbLibro,nombre),ALIAS_LIBRO);
+  libro.cargadoEn=Date.now();
   log('Libro: encabezado en fila',libro.filaHdr,'| coincidencias',libro.pts,'| cols',JSON.stringify(libro.cols));
   materializarLibro(); mostrarMapeo('libro'); mostrarLocalidades(); reindexarLibro(); estadoLibro();
-  if(mapa) cruzar(true); habilitarEscaneo(); guardar();
+  if(mapa) cruzar(true); habilitarEscaneo(); chipArchivos(); guardar();
 }
 $('fileLotes').onchange=e=>{
   const f=e.target.files[0]; if(!f) return;
@@ -1023,6 +1106,7 @@ $('fileLotes').onchange=e=>{
 };
 function cargarHojaLotes(nombre){
   lotes=construirTabla(hojaAFilas(_wbLotes,nombre),ALIAS_LOTES);
+  lotes.cargadoEn=Date.now();
   log('Lotes: encabezado en fila',lotes.filaHdr,'| cols',JSON.stringify(lotes.cols));
   materializarLotes(); mostrarMapeo('lotes'); estadoLotes();
   if(libro&&mapa) cruzar(true); habilitarEscaneo(); guardar();
@@ -1044,7 +1128,7 @@ function cargarHojaMapa(nombre){
   mapa=m; reindexarMapa(); estadoMapa();
   log('Mapa',nombre,':',mapa.plots.length,'plots | orden:',(mapa.orden||[]).slice(0,8).join(' → '),'…');
   if(libro){ locSel=''; mostrarLocalidades(); reindexarLibro(); estadoLibro(); cruzar(true); }
-  pintarMapa(); habilitarEscaneo(); guardar();
+  pintarMapa(); habilitarEscaneo(); chipArchivos(); guardar();
 }
 $('btnCruzar').onclick=()=>cruzar(false);
 $('btnLimpiarTodo').onclick=()=>{ if(!confirm('¿Borrar archivos, historial y avance?')) return;
@@ -1073,6 +1157,8 @@ function cerrarCam(){ $('camModal').style.display='none';
 $('camCerrar').onclick=cerrarCam;
 
 restaurar();
+aplicarVista();
+chipArchivos();
 </script>
 </body>
 </html>
