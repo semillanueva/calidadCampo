@@ -388,6 +388,7 @@
     <button class="btn-sec" id="btnCruzar" disabled>Revisar cruce</button>
     <button class="btn-peligro" id="btnLimpiarTodo">Borrar todo</button>
   </div>
+  <p class="hint" id="verApp" style="text-align:right;margin-top:18px"></p>
 </section>
 
 <!-- ==================== PESTAÑA 2: ESCANEAR ==================== -->
@@ -508,6 +509,9 @@
 <script>
 'use strict';
 const $ = id => document.getElementById(id);
+// Cambiar en cada versión que se sube: sirve para confirmar en la tablet que
+// ya tomó la última (se ve abajo en la pestaña Archivos).
+const VERSION_APP = '14-oct-2026 · v5 (etiqueta + sobre, orden por faja)';
 const esc = s => String(s==null?'':s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const LOG = [];
 function log(...a){ LOG.push(a.map(x=>typeof x==='string'?x:JSON.stringify(x)).join(' ')); $('diag').textContent = LOG.slice(-250).join('\n'); }
@@ -947,45 +951,56 @@ function construirMapa(rows, hoja){
   const loc=etiquetaSuelta(rows,'field location')||'';
   const spp=etiquetaSuelta(rows,'surcos per plot')||etiquetaSuelta(rows,'rows per plot')||'';
 
-  // ORDEN DE SIEMBRA: lo manda la posición de la faja, no la numeración de
-  // los plots. Serpentín: la faja de arranque va en el sentido de la columna
-  // inicial y cada faja siguiente regresa en sentido contrario, como avanza la
-  // sembradora. Se toma de "Starting Coordinates" y "Plot Layout Order" del
-  // mapa de BMS si vienen; si no, arranca en el surco 1 de la faja más baja.
-  // Una flecha en el rótulo de la faja (→ / ←) manda sobre todo lo demás.
   const inicioTxt=etiquetaSuelta(rows,'starting coordinates')||'';
-  const ordenTxt=(etiquetaSuelta(rows,'plot layout order')||'').toLowerCase();
-  const serpentin = !ordenTxt || /serp/.test(ordenTxt);
-  const mCol=inicioTxt.match(/col(?:umn|umna)?\s*(\d+)/i), mRan=inicioTxt.match(/range\s*(\d+)|faja\s*(\d+)/i);
-  const colIni=mCol?parseInt(mCol[1],10):null;
-  const ranIni=mRan?parseInt(mRan[1]||mRan[2],10):null;
-  const nums=g.fajas.map(f=>f.faja).filter(n=>n!=null);
-  const fajaMin=nums.length?Math.min(...nums):1, fajaMax=nums.length?Math.max(...nums):1;
-  const desdeArriba = ranIni!=null && ranIni===fajaMax && fajaMax!==fajaMin;   // arranca en la faja más alta
-  const dirIni = (colIni!=null && colIni===g.surcos[g.surcos.length-1] && colIni!==g.surcos[0]) ? 'izq' : 'der';
-  const fajaIni = desdeArriba ? fajaMax : fajaMin;
-  g.fajas.forEach(f=>{
-    f.dirFlecha = !!f.dir;
-    if(f.dir) return;
-    const paso = Math.abs((f.faja??fajaIni) - fajaIni);
-    f.dir = (!serpentin || paso%2===0) ? dirIni : (dirIni==='der'?'izq':'der');
-  });
+  const ordenTxt=etiquetaSuelta(rows,'plot layout order')||'';
 
   const plots=[];
   g.fajas.forEach(f=>f.plots.forEach(p=>{
     plots.push(Object.assign({faja:f.faja},p));
   }));
 
+  const m={estudio, instancia, loc, hoja, surcosPorPlot:spp, inicio:inicioTxt, layout:ordenTxt,
+           surcos:g.surcos, fajas:g.fajas, plots, orden:[]};
+  ordenarMapa(m);
+  return m;
+}
+
+// ORDEN DE SIEMBRA: lo manda la posición de la faja, no la numeración de los
+// plots. Serpentín: la faja de arranque va en el sentido de la columna inicial
+// y cada faja siguiente regresa en sentido contrario, como avanza la sembradora.
+// Se toma de "Starting Coordinates" y "Plot Layout Order" del mapa de BMS si
+// vienen; si no, arranca en el surco 1 de la faja más baja. Una flecha en el
+// rótulo de la faja (→ / ←) manda sobre todo lo demás.
+// Se recalcula cada vez que se abre la app (reindexarMapa): un mapa cargado con
+// una versión anterior toma la regla vigente sin tener que volver a cargarlo.
+function ordenarMapa(m){
+  if(!m || !m.fajas) return;
+  const inicioTxt=m.inicio||'', ordenTxt=String(m.layout||'').toLowerCase();
+  const serpentin = !ordenTxt || /serp/.test(ordenTxt);
+  const mCol=inicioTxt.match(/col(?:umn|umna)?\s*(\d+)/i), mRan=inicioTxt.match(/range\s*(\d+)|faja\s*(\d+)/i);
+  const colIni=mCol?parseInt(mCol[1],10):null;
+  const ranIni=mRan?parseInt(mRan[1]||mRan[2],10):null;
+  const nums=m.fajas.map(f=>f.faja).filter(n=>n!=null);
+  const fajaMin=nums.length?Math.min(...nums):1, fajaMax=nums.length?Math.max(...nums):1;
+  const desdeArriba = ranIni!=null && ranIni===fajaMax && fajaMax!==fajaMin;   // arranca en la faja más alta
+  const surcos=m.surcos||[];
+  const dirIni = (colIni!=null && surcos.length && colIni===surcos[surcos.length-1] && colIni!==surcos[0]) ? 'izq' : 'der';
+  const fajaIni = desdeArriba ? fajaMax : fajaMin;
+  m.fajas.forEach(f=>{
+    const flecha=dirFaja(f.label||'');
+    if(flecha){ f.dir=flecha; return; }
+    const paso = Math.abs((f.faja??fajaIni) - fajaIni);
+    f.dir = (!serpentin || paso%2===0) ? dirIni : (dirIni==='der'?'izq':'der');
+  });
   const ordenPlots=[];
-  [...g.fajas].sort((a,b)=>desdeArriba?(b.faja??0)-(a.faja??0):(a.faja??0)-(b.faja??0)).forEach(f=>{
+  [...m.fajas].sort((a,b)=>desdeArriba?(b.faja??0)-(a.faja??0):(a.faja??0)-(b.faja??0)).forEach(f=>{
     const ps = f.dir==='der' ? f.plots : [...f.plots].reverse();
     ps.forEach(p=>ordenPlots.push(p.key));
   });
-
-  return {estudio, instancia, loc, hoja, surcosPorPlot:spp, inicio:inicioTxt, serpentin,
-          surcos:g.surcos, fajas:g.fajas, plots, orden:ordenPlots};
+  m.orden=ordenPlots;
 }
 function reindexarMapa(){
+  ordenarMapa(mapa);
   idxPlotMapa=new Map();
   mapa.plots.forEach(p=>{
     idxPlotMapa.set(p.key,p);
@@ -2290,6 +2305,8 @@ async function prepararSinConexion(){
 }
 
 (async()=>{
+  if($('verApp')) $('verApp').textContent='Versión '+VERSION_APP;
+  log('Versión', VERSION_APP);
   await cargarFincas();
   await restaurar();
   await envioIniciar();
