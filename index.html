@@ -267,13 +267,13 @@
 
 <div class="scan-row">
   <div class="scan-box" id="boxLot">
-    <label>LOT UID <button class="act" style="float:right;font-size:.72rem" data-cam="scanLot">Cámara</button></label>
-    <input type="text" id="scanLot" placeholder="Carga los archivos primero" autocomplete="off" disabled>
+    <label>LOT UID <button class="act" style="float:right;font-size:.72rem" data-cam="scanLot">Cámara</button><button class="act kbd" style="float:right;font-size:.72rem;margin-right:5px" data-kbd="scanLot" title="Escribir a mano">Teclado</button></label>
+    <input type="text" id="scanLot" placeholder="Carga los archivos primero" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" inputmode="none" disabled>
     <div class="sub" id="subLot"></div>
   </div>
   <div class="scan-box waiting" id="boxObs">
-    <label>OBS UNIT ID <button class="act" style="float:right;font-size:.72rem" data-cam="scanObs">Cámara</button></label>
-    <input type="text" id="scanObs" placeholder="Escanea el LOT UID primero" autocomplete="off" disabled>
+    <label>OBS UNIT ID <button class="act" style="float:right;font-size:.72rem" data-cam="scanObs">Cámara</button><button class="act kbd" style="float:right;font-size:.72rem;margin-right:5px" data-kbd="scanObs" title="Escribir a mano">Teclado</button></label>
+    <input type="text" id="scanObs" placeholder="Escanea el LOT UID primero" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" inputmode="none" disabled>
     <div class="sub" id="subObs"></div>
   </div>
 </div>
@@ -337,6 +337,10 @@
     <button class="camb" id="camZoomOut">Zoom &minus;</button>
     <button class="camb" id="camZoomIn">Zoom +</button>
     <button class="camb" id="camFoto">Tomar foto y leer</button>
+    <select class="camb" id="camFmt" title="Tipo de código">
+      <option value="c128">Code 128 (etiquetas BMS)</option>
+      <option value="todos">Todos los formatos</option>
+    </select>
     <button class="camb" id="camFlip">Cambiar cámara</button>
     <button class="camb primaria" id="camCerrar">Cerrar</button>
   </div>
@@ -352,14 +356,33 @@ function log(...a){ LOG.push(a.map(x=>typeof x==='string'?x:JSON.stringify(x)).j
 /* ============================================================
    NORMALIZACIÓN
    ============================================================ */
-function normCode(s){ return String(s==null?'':s).trim().toUpperCase().replace(/\s+/g,''); }
-function normLoose(s){ return normCode(s).replace(/[^A-Z0-9]/g,''); }
-// Tolera ceros a la izquierda en códigos numéricos: "0001874134" y "1874134"
+// Los LOT_UID de BMS distinguen mayúsculas (ej. 2QEDL8ECOxKt6): el código
+// se conserva tal cual. Antes se pasaba todo a mayúsculas.
+function normCode(s){ return String(s==null?'':s).trim().replace(/\s+/g,''); }
+function normLoose(s){ return normCode(s).toUpperCase().replace(/[^A-Z0-9]/g,''); }
+function normGid(s){ const a=normLoose(s); return /^\d+$/.test(a)?String(parseInt(a,10)):a; }
+// Llaves de búsqueda en orden de preferencia: exacta primero, y luego
+// tolerantes (sin mayúsculas/símbolos, sin ceros a la izquierda).
 function clavesDe(s){
-  const a = normLoose(s); if(!a) return [];
-  const set = new Set([a]);
-  if (/^\d+$/.test(a)) set.add(String(parseInt(a,10)));
+  const ex = normCode(s); if(!ex) return [];
+  const set = new Set([ex]);
+  const a = normLoose(s);
+  if(a) set.add('~'+a);
+  if(/^\d+$/.test(a)) set.add('#'+parseInt(a,10));
   return [...set];
+}
+// Una llave tolerante que apunta a dos registros distintos queda marcada
+// como ambigua y no se usa: mejor "no encontrado" que el registro equivocado.
+const AMBIG={ambiguo:true};
+function indexar(mapa, valor, reg){
+  clavesDe(valor).forEach((k,i)=>{
+    if(!mapa.has(k)){ mapa.set(k,reg); return; }
+    if(i>0 && mapa.get(k)!==reg) mapa.set(k,AMBIG);
+  });
+}
+function buscarEn(mapa, valor){
+  for(const k of clavesDe(valor)){ const r=mapa.get(k); if(r && r!==AMBIG) return r; }
+  return null;
 }
 function normHdr(s){ return String(s==null?'':s).trim().toLowerCase()
   .normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]/g,''); }
@@ -517,8 +540,8 @@ function filasActivas(){
 function reindexarLibro(){
   idxObs=new Map(); idxPlotLibro=new Map();
   filasActivas().forEach(f=>{
-    clavesDe(f.obs).forEach(k=>{ if(k) idxObs.set(k,f); });
-    [f.plot,f.plotno].forEach(p=>clavesDe(p).forEach(k=>{ if(k&&!idxPlotLibro.has(k)) idxPlotLibro.set(k,f); }));
+    indexar(idxObs, f.obs, f);
+    indexar(idxPlotLibro, f.plot, f); indexar(idxPlotLibro, f.plotno, f);
   });
 }
 function mostrarLocalidades(){
@@ -566,8 +589,8 @@ function materializarLotes(){
 function reindexarLotes(){
   idxLote=new Map(); idxGidLote=new Map();
   (lotes&&lotes.filas||[]).forEach(f=>{
-    clavesDe(f.lot).forEach(k=>{ if(k&&!idxLote.has(k)) idxLote.set(k,f); });
-    clavesDe(f.gid).forEach(k=>{ if(k){ if(!idxGidLote.has(k)) idxGidLote.set(k,[]); idxGidLote.get(k).push(f); } });
+    indexar(idxLote, f.lot, f);
+    const g=normGid(f.gid); if(g){ if(!idxGidLote.has(g)) idxGidLote.set(g,[]); idxGidLote.get(g).push(f); }
   });
 }
 function estadoLotes(){
@@ -785,7 +808,8 @@ function construirMapa(rows, hoja){
 function reindexarMapa(){
   idxPlotMapa=new Map();
   mapa.plots.forEach(p=>{
-    [p.plot,p.plotNo].forEach(x=>clavesDe(x).forEach(k=>{ if(k&&!idxPlotMapa.has(k)) idxPlotMapa.set(k,p); }));
+    idxPlotMapa.set(p.key,p);
+    indexar(idxPlotMapa, p.plot, p); indexar(idxPlotMapa, p.plotNo, p);
   });
   orden=mapa.orden||[];
 }
@@ -806,13 +830,12 @@ function cruzar(silencioso){
   const sinLibro=[], sinObs=[], sinGid=[], sinLote=[];
   mapa.plots.forEach(p=>{
     let f=null;
-    for(const k of clavesDe(p.plotNo)){ if(idxPlotLibro.has(k)){ f=idxPlotLibro.get(k); break; } }
-    if(!f) for(const k of clavesDe(p.plot)){ if(idxPlotLibro.has(k)){ f=idxPlotLibro.get(k); break; } }
+    f = buscarEn(idxPlotLibro, p.plotNo) || buscarEn(idxPlotLibro, p.plot);
     if(!f){ sinLibro.push(p.plot); p.libro=null; return; }
     p.libro=f;
     if(!f.obs) sinObs.push(p.plot);
     if(!f.gid) sinGid.push(p.plot);
-    else if(lotes && !idxGidLote.has(clavesDe(f.gid)[0])) sinLote.push(`${p.plot} (GID ${f.gid})`);
+    else if(lotes && !idxGidLote.has(normGid(f.gid))) sinLote.push(`${p.plot} (GID ${f.gid})`);
   });
   const total=mapa.plots.length, ok=total-sinLibro.length;
   const problemas = sinLibro.length||sinObs.length||sinGid.length||sinLote.length;
@@ -927,12 +950,12 @@ function tomarObs(){
   evaluar(lotActual,v);
 }
 
-function buscarLote(cod){ for(const k of clavesDe(cod)){ if(idxLote.has(k)) return idxLote.get(k); } return null; }
-function buscarFila(cod){ for(const k of clavesDe(cod)){ if(idxObs.has(k)) return idxObs.get(k); } return null; }
+function buscarLote(cod){ return buscarEn(idxLote, cod); }
+function buscarFila(cod){ return buscarEn(idxObs, cod); }
 function buscarPlotMapa(fila){
   if(!fila) return null;
-  for(const k of clavesDe(fila.plotno)){ if(idxPlotMapa.has(k)) return idxPlotMapa.get(k); }
-  for(const k of clavesDe(fila.plot)){ if(idxPlotMapa.has(k)) return idxPlotMapa.get(k); }
+  const r = buscarEn(idxPlotMapa, fila.plotno) || buscarEn(idxPlotMapa, fila.plot);
+  if(r) return r;
   return null;
 }
 
@@ -951,14 +974,14 @@ function evaluar(lotRaw, obsRaw){
   const pm = buscarPlotMapa(fila);
 
   // --- la comparación que importa ---
-  const gLote=clavesDe(lote.gid)[0]||'', gPlot=clavesDe(fila.gid)[0]||'';
+  const gLote=normGid(lote.gid), gPlot=normGid(fila.gid);
   if(!gLote){ nivel='bad'; motivos.push('El lote no tiene GID en el catálogo.'); }
   else if(!gPlot){ nivel='bad'; motivos.push('El plot no tiene GID en el libro de campo.'); }
   else if(gLote!==gPlot){
     nivel='bad';
     motivos.push(`GID distinto: el lote trae ${lote.gid} (${lote.desig||'sin designation'}) y el plot espera ${fila.gid} (${fila.desig||'sin designation'}).`);
     // ¿dónde sí iba este lote?
-    const destinos=filasActivas().filter(f=>clavesDe(f.gid)[0]===gLote)
+    const destinos=filasActivas().filter(f=>normGid(f.gid)===gLote)
                                  .map(f=>f.plotno||f.plot).filter(Boolean);
     if(destinos.length) motivos.push(`Ese GID corresponde a: plot ${destinos.slice(0,5).join(', ')}${destinos.length>5?'…':''}.`);
   }
@@ -1235,19 +1258,38 @@ $('btnLimpiarTodo').onclick=()=>{ if(!confirm('¿Borrar archivos, historial y av
    es lo que trae html5-qrcode, falla mucho con códigos lineales. Se usa
    BarcodeDetector cuando existe y html5-qrcode solo como respaldo.
    ============================================================ */
-const FORMATOS_1D=['code_128','code_39','code_93','codabar','itf','ean_13','ean_8','upc_a','upc_e','qr_code'];
+// Code 39, Codabar e ITF no tienen dígito verificador obligatorio: con una
+// imagen borrosa "leen" basura. Por defecto solo Code 128 (lo que imprime BMS)
+// y QR, que sí verifican.
+const FORMATOS = {
+  c128:  ['code_128','qr_code'],
+  todos: ['code_128','code_39','code_93','codabar','itf','ean_13','ean_8','upc_a','upc_e','qr_code']
+};
+let camFmt = (()=>{ try{ return localStorage.getItem('siembraCamFmt')||'c128'; }catch(e){ return 'c128'; } })();
 let camStream=null, camTrack=null, camDetector=null, camLoop=null, camQr=null;
-let campoCam=null, camUltima={v:'',t:0}, camFacing='environment', camZoom=null;
+let campoCam=null, camUltima={v:'',t:0}, camZoom=null;
 
 document.querySelectorAll('[data-cam]').forEach(b=>{ b.onclick=ev=>{ ev.preventDefault(); abrirCam(b.dataset.cam); }; });
+// Los campos van con inputmode="none" para que el teclado no tape la pantalla
+// al escanear (la pistola lectora igual funciona). Este botón lo abre a mano.
+document.querySelectorAll('[data-kbd]').forEach(b=>{ b.onclick=ev=>{
+  ev.preventDefault();
+  const inp=$(b.dataset.kbd); if(inp.disabled) return;
+  const abrir = inp.getAttribute('inputmode')==='none';
+  inp.setAttribute('inputmode', abrir?'text':'none');
+  b.classList.toggle('on',abrir);
+  inp.blur(); setTimeout(()=>inp.focus(),30);
+}; });
 
 function camInfo(t){ $('camInfo').textContent=t; }
 
 async function abrirCam(campo){
-  campoCam=campo; camUltima={v:'',t:0};
+  campoCam=campo; camUltima={v:'',t:0}; votos.clear();
+  // Cierra el teclado: si un campo tenía el foco, el teclado tapaba la cámara.
+  if(document.activeElement && document.activeElement.blur) document.activeElement.blur();
+  $('camFmt').value=camFmt;
   $('camModal').style.display='flex';
-  const nativo = ('BarcodeDetector' in window);
-  if(nativo){
+  if('BarcodeDetector' in window){
     try{ await iniciarNativo(); return; }
     catch(e){ log('BarcodeDetector falló:', e&&e.message); camInfo('Motor nativo no disponible, usando respaldo…'); }
   } else {
@@ -1256,35 +1298,81 @@ async function abrirCam(campo){
   iniciarRespaldo();
 }
 
+/* ---------- elección de cámara ----------
+   Los teléfonos con varias cámaras traseras suelen entregarle al navegador
+   la gran angular, que tiene ENFOQUE FIJO: por más que acerques o alejes no
+   enfoca. Se busca la trasera que declare enfoque automático continuo y se
+   recuerda para la próxima vez. */
+const LS_CAM='siembraCamId';
+function camGuardada(){ try{ return localStorage.getItem(LS_CAM)||''; }catch(e){ return ''; } }
+function guardarCam(id){ try{ if(id) localStorage.setItem(LS_CAM,id); else localStorage.removeItem(LS_CAM); }catch(e){} }
+function tieneAutofoco(track){
+  const c = (track && track.getCapabilities) ? track.getCapabilities() : {};
+  return Array.isArray(c.focusMode) && c.focusMode.includes('continuous');
+}
+async function abrirStream(deviceId){
+  const v = deviceId ? {deviceId:{exact:deviceId}} : {facingMode:{ideal:'environment'}};
+  v.width={ideal:1920}; v.height={ideal:1080};
+  return navigator.mediaDevices.getUserMedia({video:v, audio:false});
+}
+async function camarasVideo(){
+  return (await navigator.mediaDevices.enumerateDevices()).filter(d=>d.kind==='videoinput');
+}
+async function buscarCamaraConFoco(){
+  const todas = await camarasVideo();
+  const traseras = todas.filter(d=>/back|rear|trasera|environment/i.test(d.label));
+  const lista = traseras.length ? traseras : todas;
+  for(const d of lista){
+    try{
+      const st = await abrirStream(d.deviceId);
+      const t = st.getVideoTracks()[0];
+      const ok = tieneAutofoco(t);
+      log('Probando', d.label||d.deviceId.slice(0,8), '→ autofoco:', ok);
+      st.getTracks().forEach(x=>x.stop());
+      if(ok) return d.deviceId;
+    }catch(e){ log('No abrió', d.label, e&&e.message); }
+  }
+  return '';
+}
+
 async function iniciarNativo(){
   const soportados = await window.BarcodeDetector.getSupportedFormats();
-  const usar = FORMATOS_1D.filter(f=>soportados.includes(f));
-  if(!usar.length) throw new Error('sin formatos 1D');
+  const usar = FORMATOS[camFmt].filter(f=>soportados.includes(f));
+  if(!usar.length) throw new Error('el navegador no soporta '+FORMATOS[camFmt].join(','));
   camDetector = new window.BarcodeDetector({formats:usar});
   log('Motor nativo BarcodeDetector. Formatos:', usar.join(','));
 
-  // Resolución alta: un código lineal necesita píxeles a lo ancho. A 640px
-  // las barras finas se funden y no decodifica nada.
-  camStream = await navigator.mediaDevices.getUserMedia({ video:{
-    facingMode:{ideal:camFacing}, width:{ideal:1920}, height:{ideal:1080},
-    advanced:[{focusMode:'continuous'}]
-  }, audio:false });
+  let id = camGuardada(), st = null;
+  if(id){ try{ st = await abrirStream(id); }catch(e){ guardarCam(''); id=''; } }
+  if(!st){
+    st = await abrirStream('');
+    const t = st.getVideoTracks()[0];
+    if(tieneAutofoco(t)){ guardarCam((t.getSettings&&t.getSettings().deviceId)||''); }
+    else {
+      st.getTracks().forEach(x=>x.stop());
+      camInfo('Buscando la cámara que enfoca…');
+      const elegido = await buscarCamaraConFoco();
+      guardarCam(elegido);
+      st = await abrirStream(elegido);
+    }
+  }
+  camStream = st;
+  camTrack = camStream.getVideoTracks()[0];
+  if(tieneAutofoco(camTrack)){ try{ await camTrack.applyConstraints({advanced:[{focusMode:'continuous'}]}); }catch(e){} }
 
   const v=$('camVideo');
   v.srcObject=camStream; v.style.display='block'; $('camGuide').style.display='block';
   await v.play();
-  camTrack = camStream.getVideoTracks()[0];
-  const st = camTrack.getSettings ? camTrack.getSettings() : {};
-  camInfo(`Listo — ${st.width||'?'}×${st.height||'?'} · apunta el código dentro de la franja`);
-  log('Cámara:', st.width+'x'+st.height, '| track:', camTrack.label);
+  const cfg = camTrack.getSettings ? camTrack.getSettings() : {};
+  const foco = tieneAutofoco(camTrack);
+  camInfo(`${cfg.width||'?'}×${cfg.height||'?'} · ${foco?'enfoque automático':'SIN enfoque automático — prueba Cambiar cámara'}`);
+  log('Cámara:', (cfg.width||'?')+'x'+(cfg.height||'?'), '| track:', camTrack.label, '| autofoco:', foco);
   prepararControles();
 
-  // El escenario copia la proporción del video para que el marco no mienta.
   const ajustar=()=>{ if(v.videoWidth&&v.videoHeight)
     $('camStage').style.aspectRatio = v.videoWidth+' / '+v.videoHeight; };
   v.addEventListener('loadedmetadata',ajustar); ajustar();
 
-  // Algunas cámaras publican torch/zoom recién cuando el track lleva un rato vivo.
   setTimeout(prepararControles,900);
   setTimeout(()=>{ if(camZoom && camZoom.max>=2 && camZoom.val<2){
       camZoom.val=Math.min(2,camZoom.max); aplicar({zoom:camZoom.val}); } },1100);
@@ -1296,9 +1384,6 @@ async function iniciarNativo(){
     if(v.readyState>=2 && v.videoWidth){
       const w=v.videoWidth, h=v.videoHeight;
       let codigos=[];
-      // Se alterna entre la franja recortada y el cuadro completo. Antes el
-      // recorte y el cuadro iban en el mismo try: si el recorte lanzaba, el
-      // cuadro completo nunca se intentaba.
       if(++alterna % 2){
         try{
           const bw=Math.round(w*0.88), bh=Math.round(h*0.45);
@@ -1309,13 +1394,30 @@ async function iniciarNativo(){
         }catch(e){}
       }
       if(!codigos.length){ try{ codigos = await camDetector.detect(v); }catch(e){} }
-      if(codigos.length) recibirCam(codigos[0].rawValue, codigos[0].format);
+      if(codigos.length){ ultimoAviso=Date.now(); votar(codigos[0].rawValue, codigos[0].format); }
       else if(Date.now()-ultimoAviso>3500){ ultimoAviso=Date.now();
-        camInfo(`Buscando… el código debe llenar el ancho del marco (${w}×${h})`); }
+        camInfo('Buscando… a 15–20 cm, con el código a lo ancho del marco. Si se ve chico, Zoom +'); }
     }
     camLoop = requestAnimationFrame(tick);
   };
   camLoop = requestAnimationFrame(tick);
+}
+
+/* ---------- consenso ----------
+   El bucle analiza ~30 cuadros por segundo. Sobre una imagen borrosa,
+   tarde o temprano alguno decodifica basura. Un valor solo se acepta cuando
+   aparece varias veces igual: 2 veces si existe en el catálogo/libro, 3 si
+   no existe (para no rechazar un sobre por una lectura fantasma). */
+const votos=new Map();
+function votar(txt, fmt){
+  const ahora=Date.now();
+  for(const [k,x] of votos) if(ahora-x.t>2500) votos.delete(k);
+  const x=votos.get(txt)||{n:0,t:ahora}; x.n++; x.t=ahora; votos.set(txt,x);
+  const destino = campoCam || campoActivo().id;
+  const conocido = destino==='scanLot' ? !!buscarLote(txt) : !!buscarFila(txt);
+  const hacen = conocido ? 2 : 3;
+  if(x.n>=hacen){ votos.clear(); recibirCam(txt, fmt); }
+  else camInfo(`Confirmando ${txt}… ${x.n}/${hacen}`);
 }
 
 function prepararControles(){
@@ -1364,13 +1466,33 @@ $('camFoto').onclick = async ()=>{
     if(!bmp){ const v=$('camVideo'); bmp = await createImageBitmap(v); }
     log('Foto fija:', bmp.width+'x'+bmp.height);
     const codigos = await camDetector.detect(bmp);
-    if(codigos.length) recibirCam(codigos[0].rawValue, codigos[0].format+' (foto)');
+    if(codigos.length){
+      const txt=codigos[0].rawValue, destino=campoCam||campoActivo().id;
+      const conocido = destino==='scanLot' ? !!buscarLote(txt) : !!buscarFila(txt);
+      if(conocido) recibirCam(txt, codigos[0].format+' (foto)');
+      else { votar(txt, codigos[0].format+' (foto)');
+             camInfo(`La foto leyó ${txt}, que no está en los archivos. Toma otra para confirmar.`); }
+    }
     else camInfo(`Nada en la foto de ${bmp.width}×${bmp.height}. Acerca más o enciende la linterna.`);
   }catch(e){ camInfo('No se pudo tomar la foto: '+(e&&e.message)); log('Foto falló:',e&&e.message); }
 };
 
 $('camFlip').onclick = async ()=>{
-  camFacing = camFacing==='environment'?'user':'environment';
+  try{
+    const lista = await camarasVideo();
+    if(lista.length<2){ camInfo('Este equipo solo tiene una cámara disponible.'); return; }
+    const actual = camTrack && camTrack.getSettings ? camTrack.getSettings().deviceId : '';
+    const k = lista.findIndex(d=>d.deviceId===actual);
+    const sig = lista[(k+1)%lista.length];
+    guardarCam(sig.deviceId);
+    const c=campoCam; pararCam(); $('camModal').style.display='flex'; campoCam=c;
+    await iniciarNativo();
+    camInfo(`Cámara ${(k+1)%lista.length+1}/${lista.length}: ${sig.label||'sin nombre'} · `+
+            (tieneAutofoco(camTrack)?'enfoque automático':'enfoque FIJO'));
+  }catch(e){ camInfo('No se pudo cambiar: '+(e&&e.message)); }
+};
+$('camFmt').onchange = async ()=>{
+  camFmt=$('camFmt').value; try{ localStorage.setItem('siembraCamFmt',camFmt); }catch(e){}
   const c=campoCam; pararCam(); $('camModal').style.display='flex'; campoCam=c;
   try{ await iniciarNativo(); }catch(e){ iniciarRespaldo(); }
 };
@@ -1378,18 +1500,15 @@ $('camFlip').onclick = async ()=>{
 function iniciarRespaldo(){
   if(typeof Html5Qrcode==='undefined'){ camInfo('No hay lector disponible en este navegador.'); return; }
   $('camVideo').style.display='none'; $('camGuide').style.display='none';
-  const fmts=(typeof Html5QrcodeSupportedFormats!=='undefined')?[
-    Html5QrcodeSupportedFormats.CODE_128, Html5QrcodeSupportedFormats.CODE_39,
-    Html5QrcodeSupportedFormats.CODE_93,  Html5QrcodeSupportedFormats.ITF,
-    Html5QrcodeSupportedFormats.CODABAR,  Html5QrcodeSupportedFormats.EAN_13,
-    Html5QrcodeSupportedFormats.EAN_8,    Html5QrcodeSupportedFormats.UPC_A,
-    Html5QrcodeSupportedFormats.UPC_E,    Html5QrcodeSupportedFormats.QR_CODE]:undefined;
+  const F=(typeof Html5QrcodeSupportedFormats!=='undefined')?Html5QrcodeSupportedFormats:null;
+  const fmts = !F ? undefined : (camFmt==='c128' ? [F.CODE_128, F.QR_CODE] : [
+    F.CODE_128, F.CODE_39, F.CODE_93, F.ITF, F.CODABAR, F.EAN_13, F.EAN_8, F.UPC_A, F.UPC_E, F.QR_CODE]);
   camQr=new Html5Qrcode('camReader',{ formatsToSupport:fmts,
     experimentalFeatures:{ useBarCodeDetectorIfSupported:true } });
   camQr.start({facingMode:'environment'},
     { fps:10, qrbox:(w,h)=>({width:Math.floor(w*0.9),height:Math.floor(h*0.35)}),
       videoConstraints:{ facingMode:'environment', width:{ideal:1920}, height:{ideal:1080} } },
-    (txt,res)=>recibirCam(txt,(res&&res.result&&res.result.format&&res.result.format.formatName)||''),
+    (txt,res)=>votar(txt,(res&&res.result&&res.result.format&&res.result.format.formatName)||''),
     ()=>{}
   ).then(()=>camInfo('Respaldo activo — apunta el código')).catch(e=>camInfo('No se pudo abrir la cámara: '+e));
 }
