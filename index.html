@@ -299,6 +299,21 @@
     .verdict{font-size:1.25rem;padding:16px;}
     .scan-box input{font-size:1.15rem;}
   }
+
+  /* ===== Envío a Google Sheets ===== */
+  button.chip { border:0; font:inherit; font-size:.72rem; cursor:pointer; }
+  #envDlg { border:0; border-radius:12px; padding:0; width:min(440px,94vw); color:#1a1a1a; }
+  #envDlg::backdrop { background:rgba(0,0,0,.45); }
+  #envDlg .in { padding:18px; }
+  #envDlg h3 { margin:0 0 4px; font-size:1.1rem; color:var(--accent); }
+  #envDlg label { display:block; margin:12px 0 4px; font-weight:600; font-size:.88rem; }
+  #envDlg input { width:100%; padding:10px; font-size:1rem; border:1px solid var(--line); border-radius:8px; }
+  #envEst { margin-top:14px; padding:10px 12px; border-radius:8px; background:var(--graybg);
+            font-size:.88rem; line-height:1.45; white-space:pre-line; word-break:break-word; }
+  #envEst.ok { background:var(--okbg); color:var(--ok); }
+  #envEst.bad { background:var(--badbg); color:var(--bad); }
+  #envDlg .acciones { display:flex; flex-wrap:wrap; gap:8px; margin-top:14px; }
+  #envDlg .acciones button { flex:1 1 auto; padding:10px 12px; }
 </style>
 </head>
 <body>
@@ -307,6 +322,7 @@
     <h1>Verificación de Siembra</h1>
     <span class="chip" id="chipGps" title="Estado del GPS">📍 GPS</span>
     <span class="chip" id="chipRed" title="Estado de conexión">…</span>
+    <button class="chip" id="chipEnvio" type="button" title="Envío a Google Sheets">☁ …</button>
     <span class="chip" id="chipArch">sin archivos</span>
   </div>
   <nav class="tabs" role="tablist">
@@ -458,6 +474,25 @@
     <button class="camb primaria" id="camCerrar">Cerrar</button>
   </div>
 </div>
+
+<dialog id="envDlg">
+  <div class="in">
+    <h3>Envío a Google Sheets</h3>
+    <label for="envTec">Tablet o técnico</label>
+    <input id="envTec" autocomplete="off" placeholder="Ej.: Tablet 2 – Allan">
+    <label for="envUrl">URL del Apps Script</label>
+    <input id="envUrl" type="url" autocomplete="off" inputmode="url" placeholder="https://script.google.com/macros/s/…/exec">
+    <label for="envClave">Clave</label>
+    <input id="envClave" type="password" autocomplete="off">
+    <div id="envEst"></div>
+    <div class="acciones">
+      <button class="btn-big" id="envGuardar" type="button">Guardar</button>
+      <button class="btn-sec" id="envProbar" type="button">Probar conexión</button>
+      <button class="btn-sec" id="envAhora" type="button">Enviar ahora</button>
+      <button class="btn-sec" id="envCerrar" type="button">Cerrar</button>
+    </div>
+  </div>
+</dialog>
 
 <script>
 'use strict';
@@ -1115,7 +1150,9 @@ function terminar(obs,fila,pm,nivel,motivos,gps){
   // secuencia se saltaría ese plot y el error quedaría enterrado.
   if(pm){ if(nivel==='bad') errores.add(pm.key); else { sembrados.set(pm.key,'ok'); errores.delete(pm.key); } }
 
-  historial.unshift({hora:new Date().toLocaleTimeString('es-GT'), fecha:new Date().toISOString().slice(0,10),
+  historial.unshift({uid:envioUid(), ts:Date.now(),
+    estudio:(mapa&&mapa.estudio)||'', loc:(mapa&&mapa.loc)||'',
+    hora:new Date().toLocaleTimeString('es-GT'), fecha:new Date().toISOString().slice(0,10),
     obs, gid:fila?fila.gid:'', desig:fila?fila.desig:'',
     plot:pm?pm.plot:(fila?(fila.plotno||fila.plot):''), faja:pm?pm.faja:'',
     surco:pm?(pm.surcoIni+(pm.span>1?'–'+pm.surcoFin:'')):'',
@@ -1124,6 +1161,7 @@ function terminar(obs,fila,pm,nivel,motivos,gps){
     finca:(gps&&gps.finca)?gps.finca.nombre:'', distFinca:(gps&&gps.finca)?gps.finca.dist:null,
     fueraFinca:(gps&&gps.finca)?gps.finca.fuera:null,
     nivel, detalle:motivos.join(' ')});
+  envioEncolar(historial[0]);
 
   if(navigator.vibrate) navigator.vibrate(nivel==='ok'?90:[70,60,70,60,70]);
   beep(nivel);
@@ -1878,6 +1916,214 @@ function pintarFinca(){
 }
 
 /* ============================================================
+   ENVÍO A GOOGLE SHEETS (cola sin internet)
+   Cada escaneo se copia a una cola guardada en el teléfono y se envía
+   cuando hay señal, en lotes de 50, a un Apps Script publicado por
+   Alessandro (Codigo.gs). Si falla, reintenta con espera creciente
+   (15 s … 5 min) y al volver la señal.
+   - La cola vive en su propia base (siembraCampoEnvio): "Limpiar
+     historial" y "Borrar todo" no pierden lo que falta enviar.
+   - Cada escaneo lleva un uid fijo; el Apps Script ignora los
+     repetidos, así que un reintento nunca duplica filas.
+   - URL, clave y nombre se escriben una vez en cada tablet. No van en
+     el código porque el repositorio es público.
+   - La clave solo evita filas falsas de quien encuentre la URL; no
+     protege contra alguien que tenga la tablet en la mano.
+   ============================================================ */
+const ENV_DB='siembraCampoEnvio', ENV_T='kv', ENV_LOTE=50, ENV_TIMEOUT=25000;
+let envCfg={url:'', clave:'', tecnico:'', tabletId:''};
+let envCola=[], envVistos=new Set(), envListo=false, envEnviando=false, envEspera=0, envTimer=null;
+let envUltimo={cuando:0, texto:'Sin envíos todavía.', error:false};
+
+let _envDb=null;
+function envDb(){
+  if(_envDb) return _envDb;
+  _envDb=new Promise((res,rej)=>{
+    if(!('indexedDB' in window)) return rej(new Error('sin IndexedDB'));
+    const r=indexedDB.open(ENV_DB,1);
+    r.onupgradeneeded=()=>r.result.createObjectStore(ENV_T);
+    r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error);
+  });
+  _envDb.catch(()=>{ _envDb=null; });
+  return _envDb;
+}
+async function envPut(k,v){ const d=await envDb();
+  return new Promise((res,rej)=>{ const tx=d.transaction(ENV_T,'readwrite'); tx.objectStore(ENV_T).put(v,k);
+    tx.oncomplete=()=>res(); tx.onerror=()=>rej(tx.error); tx.onabort=()=>rej(tx.error); }); }
+async function envGet(k){ const d=await envDb();
+  return new Promise((res,rej)=>{ const r=d.transaction(ENV_T).objectStore(ENV_T).get(k);
+    r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error); }); }
+
+function envAzar(n){
+  const a=new Uint32Array(n);
+  if(window.crypto&&crypto.getRandomValues) crypto.getRandomValues(a); else for(let i=0;i<n;i++) a[i]=Math.random()*4294967296;
+  return Array.from(a,x=>(x>>>0).toString(36)).join('');
+}
+function envioUid(){ return Date.now().toString(36)+'-'+envAzar(2); }
+
+// uid para escaneos guardados antes de esta versión (no traen uid):
+// sale del contenido, así que encolarlos dos veces da el mismo uid.
+function envHash(s){
+  let h1=0xdeadbeef, h2=0x41c6ce57;
+  for(let i=0;i<s.length;i++){ const c=s.charCodeAt(i);
+    h1=Math.imul(h1^c,2654435761); h2=Math.imul(h2^c,1597334677); }
+  h1=Math.imul(h1^(h1>>>16),2246822507)^Math.imul(h2^(h2>>>13),3266489909);
+  h2=Math.imul(h2^(h2>>>16),2246822507)^Math.imul(h1^(h1>>>13),3266489909);
+  return (4294967296*(2097151&h2)+(h1>>>0)).toString(36);
+}
+
+// Una fila de la hoja: mismas columnas que el CSV, más estudio y localidad.
+function envFila(h,uid){
+  // Todas las columnas siempre presentes (vacías si no hay dato) para que la
+  // hoja las cree en el mismo orden del CSV.
+  const n6=x=>x==null?'':Math.round(x*1e6)/1e6, t=x=>x==null?'':x;
+  return {uid,
+    Capturado:h.ts?new Date(h.ts).toISOString():'',
+    Tablet:envCfg.tabletId, Tecnico:envCfg.tecnico,
+    Estudio:h.estudio!=null?h.estudio:((mapa&&mapa.estudio)||''),
+    Localidad:h.loc!=null?h.loc:((mapa&&mapa.loc)||''),
+    Fecha:h.fecha||'', Hora:h.hora||'', OBS_UNIT_ID:h.obs||'',
+    Plot:t(h.plot), Faja:t(h.faja), Surco:t(h.surco), GID:t(h.gid), Designation:t(h.desig), Entry:t(h.entry),
+    Resultado:h.nivel==='ok'?'CORRECTO':h.nivel==='warn'?'REVISAR':'INCORRECTO',
+    Latitud:n6(h.lat), Longitud:n6(h.lon), Precision_m:h.acc!=null?Math.round(h.acc):'',
+    Edad_GPS_s:t(h.gpsEdad), Finca:t(h.finca), Distancia_finca_m:t(h.distFinca),
+    Fuera_de_finca:h.fueraFinca==null?'':(h.fueraFinca?'SI':'NO'),
+    Ver_en_mapa:h.lat!=null?`https://maps.google.com/?q=${h.lat.toFixed(6)},${h.lon.toFixed(6)}`:'',
+    Detalle:h.detalle||''};
+}
+
+// Pone un escaneo en la cola. La marca _env viaja con el historial (guardar()).
+function envioEncolar(h){
+  if(!envListo||!h||h._env) return false;   // si la cola aún no cargó, lo toma el barrido de envioIniciar
+  const {_env, ...limpio}=h;
+  const uid=h.uid||(envCfg.tabletId+'-'+envHash(JSON.stringify(limpio)));
+  h._env=1;
+  if(envVistos.has(uid)) return false;
+  envVistos.add(uid);
+  envCola.push(envFila(h,uid));
+  envGuardarCola().then(envEnviar);
+  pintarEnvio();
+  return true;
+}
+async function envGuardarCola(){
+  try{ await envPut('cola',envCola); }
+  catch(e){ envUltimo={cuando:Date.now(), texto:'No se pudo guardar la cola: '+e.message, error:true}; log('Envío:',envUltimo.texto); }
+}
+
+function envConfigurado(){ return !!(envCfg.url&&envCfg.clave); }
+
+async function envPost(registros){
+  const ctl=('AbortController' in window)?new AbortController():null;
+  const t=ctl?setTimeout(()=>ctl.abort(),ENV_TIMEOUT):null;
+  try{
+    // text/plain: Apps Script no responde la consulta previa CORS que dispararía application/json.
+    const r=await fetch(envCfg.url,{method:'POST', redirect:'follow',
+      headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body:JSON.stringify({clave:envCfg.clave, registros}), signal:ctl?ctl.signal:undefined});
+    const txt=await r.text();
+    let d; try{ d=JSON.parse(txt); }
+    catch(e){ throw new Error('respuesta inesperada. Revisa que la URL termine en /exec y que el acceso sea "Cualquier persona"'); }
+    if(!d.ok) throw new Error(d.error||'error del script');
+    return d;
+  }catch(e){
+    if(e.name==='AbortError') throw new Error('sin respuesta en '+(ENV_TIMEOUT/1000)+' s');
+    if(e instanceof TypeError) throw new Error('sin conexión con Google');
+    throw e;
+  }finally{ if(t) clearTimeout(t); }
+}
+
+async function envEnviar(){
+  if(envEnviando||!envCola.length||!envConfigurado()||navigator.onLine===false){ pintarEnvio(); return; }
+  envEnviando=true; clearTimeout(envTimer); pintarEnvio();
+  try{
+    while(envCola.length){
+      const d=await envPost(envCola.slice(0,ENV_LOTE));
+      const ok=new Set((d.guardados||[]).map(String));
+      if(!ok.size) throw new Error('el script no confirmó ningún escaneo');
+      envCola=envCola.filter(r=>!ok.has(String(r.uid)));
+      await envGuardarCola();
+      envUltimo={cuando:Date.now(), texto:'Enviado: '+(d.nuevos||0)+' filas nuevas en la hoja.', error:false};
+      pintarEnvio();
+    }
+    envEspera=0;
+  }catch(e){
+    envEspera=Math.min(envEspera?envEspera*2:15000,300000);
+    envUltimo={cuando:Date.now(), texto:'No se envió: '+e.message+'. Reintento en '+Math.round(envEspera/1000)+' s.', error:true};
+    log('Envío:',envUltimo.texto);
+    envTimer=setTimeout(envEnviar,envEspera);
+  }finally{ envEnviando=false; pintarEnvio(); }
+}
+
+function pintarEnvio(){
+  const c=$('chipEnvio'); if(!c) return;
+  const n=envCola.length;
+  if(!envConfigurado()){ c.className='chip'+(n?' warn':''); c.textContent='☁ Configurar envío'+(n?' ('+n+')':''); }
+  else if(envEnviando){ c.className='chip warn'; c.textContent='☁ Enviando '+n+'…'; }
+  else if(!n){ c.className='chip ok'; c.textContent='☁ Al día'; }
+  else if(envUltimo.error){ c.className='chip bad'; c.textContent='☁ '+n+' sin enviar'; }
+  else { c.className='chip warn'; c.textContent='☁ '+n+' por enviar'; }
+  const e=$('envEst'); if(!e) return;
+  const lineas=[n?n+(n===1?' escaneo por enviar.':' escaneos por enviar.'):'No hay escaneos por enviar.'];
+  if(navigator.onLine===false) lineas.push('Sin internet: se envían solos al volver la señal.');
+  if(!envCfg.tecnico) lineas.push('Falta el nombre de la tablet o del técnico.');
+  lineas.push((envUltimo.cuando?new Date(envUltimo.cuando).toLocaleTimeString('es-GT')+' — ':'')+envUltimo.texto);
+  e.textContent=lineas.join('\n');
+  e.className=envUltimo.error?'bad':(envUltimo.cuando&&!n?'ok':'');
+}
+
+async function envLeerForm(){
+  envCfg.tecnico=$('envTec').value.trim();
+  envCfg.url=$('envUrl').value.trim();
+  envCfg.clave=$('envClave').value;
+  await envPut('cfg',envCfg);
+}
+$('chipEnvio').onclick=()=>{
+  $('envTec').value=envCfg.tecnico; $('envUrl').value=envCfg.url; $('envClave').value=envCfg.clave;
+  pintarEnvio();
+  const d=$('envDlg'); if(d.showModal) d.showModal(); else d.setAttribute('open','');
+};
+$('envCerrar').onclick=()=>{ const d=$('envDlg'); if(d.close) d.close(); else d.removeAttribute('open'); };
+$('envGuardar').onclick=async()=>{
+  try{
+    await envLeerForm();
+    // Los escaneos aún no enviados toman el nombre nuevo.
+    envCola.forEach(r=>{ r.Tecnico=envCfg.tecnico; }); await envGuardarCola();
+    envUltimo={cuando:Date.now(), texto:'Configuración guardada.', error:false};
+  }catch(e){ envUltimo={cuando:Date.now(), texto:'No se pudo guardar: '+e.message, error:true}; }
+  envEspera=0; pintarEnvio(); envEnviar();
+};
+$('envProbar').onclick=async()=>{
+  try{ await envLeerForm(); }catch(e){}
+  if(!envConfigurado()){ envUltimo={cuando:Date.now(), texto:'Falta la URL o la clave.', error:true}; pintarEnvio(); return; }
+  envUltimo={cuando:Date.now(), texto:'Probando…', error:false}; pintarEnvio();
+  try{ await envPost([]); envUltimo={cuando:Date.now(), texto:'Conexión correcta: la URL y la clave funcionan.', error:false}; }
+  catch(e){ envUltimo={cuando:Date.now(), texto:'Falló la prueba: '+e.message+'.', error:true}; }
+  pintarEnvio();
+};
+$('envAhora').onclick=()=>{ envEspera=0; envEnviar(); };
+window.addEventListener('online',()=>{ envEspera=0; envEnviar(); });
+window.addEventListener('offline',pintarEnvio);
+document.addEventListener('visibilitychange',()=>{ if(!document.hidden) envEnviar(); });
+
+// Se llama al abrir, después de restaurar(): carga la cola y encola lo que
+// esté en el historial y aún no se haya mandado (incluye escaneos anteriores
+// a esta versión).
+async function envioIniciar(){
+  try{
+    const c=await envGet('cfg'); if(c) envCfg=Object.assign(envCfg,c);
+    const q=await envGet('cola'); if(Array.isArray(q)) envCola=q;
+  }catch(e){ envUltimo={cuando:Date.now(), texto:'Almacenamiento no disponible: '+e.message, error:true}; log('Envío:',envUltimo.texto); }
+  if(!envCfg.tabletId){ envCfg.tabletId='t'+envAzar(2); try{ await envPut('cfg',envCfg); }catch(e){} }
+  envCola.forEach(r=>envVistos.add(String(r.uid)));
+  envListo=true;
+  let marcados=0;
+  for(let i=historial.length-1;i>=0;i--){ const h=historial[i]; if(h&&!h._env){ envioEncolar(h); marcados++; } }
+  if(marcados) guardar();
+  pintarEnvio();
+  envEnviar();
+}
+
+/* ============================================================
    SIN INTERNET
    El service worker (sw.js, junto a esta página) guarda la página y las
    librerías en el teléfono la primera vez que se abre con internet. Después
@@ -1921,6 +2167,7 @@ async function prepararSinConexion(){
 (async()=>{
   await cargarFincas();
   await restaurar();
+  await envioIniciar();
   aplicarVista();
   chipArchivos();
   if(estadoArchivos().listos===2) irTab(tabGuardada && tabGuardada!=='carga' ? tabGuardada : 'escaneo');
