@@ -379,11 +379,7 @@
 
 <!-- ==================== PESTAÑA 2: ESCANEAR ==================== -->
 <section class="pane" data-pane="escaneo">
-  <div class="modo-bar">
-    <button id="modoLibre" class="on">Modo libre</button>
-    <button id="modoSec">Modo siembra (en orden)</button>
-  </div>
-  <p class="hint" id="modoHint">Escanea cualquier sobre y te dice a qué plot pertenece.</p>
+  <p class="hint" id="modoHint">Siembra en orden: la app espera el siguiente plot del serpentín y marca como error cualquier sobre fuera de orden.</p>
   <div class="finca-bar" id="fincaBar" style="display:none"></div>
 
   <div class="scan-row">
@@ -543,7 +539,7 @@ function normLocal(s){ return normLoose(String(s||'').replace(/\([^)]*\)\s*$/,''
 let libro=null, mapa=null;
 let idxObs=new Map(), idxPlotLibro=new Map(), idxPlotMapa=new Map(), idxObsTodas=new Map();
 let orden=[], historial=[], sembrados=new Map(), errores=new Set();
-let modo='libre', volteado=false, locSel='', campo=false, zoom=1;
+let modo='secuencia', volteado=false, locSel='', campo=false, zoom=1;
 let _wbLibro=null, _wbMapa=null;
 
 /* ------------------------------------------------------------
@@ -599,7 +595,7 @@ async function restaurar(){
     if(!d) return;
     libro=d.libro||null; mapa=d.mapa||null;
     historial=d.historial||[]; sembrados=new Map(d.sembrados||[]);
-    errores=new Set(d.errores||[]); modo=d.modo||'libre'; locSel=d.locSel||'';
+    errores=new Set(d.errores||[]); modo='secuencia'; locSel=d.locSel||'';
     campo=false; zoom=(d.zoom==null?1:d.zoom); tabGuardada=d.tab||'';
     if(libro){ reindexarLibro(); mostrarMapeo('libro'); mostrarLocalidades(); estadoLibro(); }
     if(mapa){ reindexarMapa(); estadoMapa(); }
@@ -1314,14 +1310,8 @@ $('btnClear').onclick=()=>{
 /* ============================================================
    MODO / VISTA
    ============================================================ */
-function aplicarModo(){
-  $('modoLibre').classList.toggle('on',modo==='libre');
-  $('modoSec').classList.toggle('on',modo==='secuencia');
-  $('modoHint').textContent = modo==='libre'
-    ? 'Escanea cualquier sobre y te dice a qué plot pertenece.'
-    : 'La app espera el siguiente plot del serpentín y marca como error cualquier sobre fuera de orden.';
-  pintarMapa(); guardar();
-}
+// Solo existe el modo siembra en orden (el modo libre se quitó).
+function aplicarModo(){ pintarMapa(); guardar(); }
 function aplicarVista(){
   document.body.dataset.zoom = String(zoom);
   pintarMapa(); guardar();
@@ -1387,8 +1377,6 @@ $('btnIrEscaneo').onclick=()=>{ if(libro&&mapa) cruzar(true); irTab('escaneo'); 
 $('zOut').onclick=()=>{ zoom=Math.max(0,zoom-1); aplicarVista(); };
 $('zIn').onclick =()=>{ zoom=Math.min(2,zoom+1); aplicarVista(); };
 
-$('modoLibre').onclick=()=>{ modo='libre'; aplicarModo(); };
-$('modoSec').onclick=()=>{ modo='secuencia'; aplicarModo(); };
 $('btnVoltear').onclick=()=>{ volteado=!volteado; pintarMapa(); };
 
 /* ============================================================
