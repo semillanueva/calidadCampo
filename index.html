@@ -143,6 +143,10 @@
   .camb.on { background:#b8860b; border-color:#b8860b; }
   .camb.primaria { background:var(--accent); border-color:var(--accent); font-weight:700; }
   .camb:disabled { opacity:.4; }
+  #camPaso { color:#fff; font-weight:800; font-size:1.05rem; margin-top:8px; text-align:center; min-height:1.3em; }
+  #camPaso.ok { color:#7ee2a0; }
+  #camStage.pausa video { filter:brightness(.45); }
+  #camStage.pausa #camGuide { border-color:#7ee2a0; }
   details.diag { margin-top:10px; font-size:.82rem; }
   details.diag pre { background:#1a1a17; color:#74c69d; padding:10px; border-radius:6px;
                      font-size:11px; overflow:auto; max-height:280px; white-space:pre-wrap; }
@@ -331,7 +335,9 @@
     <div id="camGuide"></div>
     <div id="camReader"></div>
   </div>
+  <div id="camPaso"></div>
   <div id="camInfo">Iniciando cámara…</div>
+  <button class="camb primaria" id="camSeguir" style="display:none;margin-bottom:8px;font-size:1rem;padding:12px 22px">Ya estoy apuntando al OBS UNIT</button>
   <div id="camCtrls">
     <button class="camb" id="camTorch">Linterna</button>
     <button class="camb" id="camZoomOut">Zoom &minus;</button>
@@ -1268,6 +1274,10 @@ const FORMATOS = {
 let camFmt = (()=>{ try{ return localStorage.getItem('siembraCamFmt')||'c128'; }catch(e){ return 'c128'; } })();
 let camStream=null, camTrack=null, camDetector=null, camLoop=null, camQr=null;
 let campoCam=null, camUltima={v:'',t:0}, camZoom=null;
+// Tras leer el LOT UID se pausa el detector: el mismo código sigue en el
+// cuadro y, sin pausa, se volvía a leer como si fuera el OBS UNIT.
+const PAUSA_MS = 2500;
+let camPausaHasta=0, camLotLeido='', camPausaTimer=null;
 
 document.querySelectorAll('[data-cam]').forEach(b=>{ b.onclick=ev=>{ ev.preventDefault(); abrirCam(b.dataset.cam); }; });
 // Los campos van con inputmode="none" para que el teclado no tape la pantalla
@@ -1285,6 +1295,9 @@ function camInfo(t){ $('camInfo').textContent=t; }
 
 async function abrirCam(campo){
   campoCam=campo; camUltima={v:'',t:0}; votos.clear();
+  camPausaHasta=0; camLotLeido=''; clearInterval(camPausaTimer);
+  $('camStage').classList.remove('pausa'); $('camSeguir').style.display='none';
+  camPaso(campo==='scanObs' ? 'Escaneando OBS UNIT ID…' : 'Paso 1 de 2: escanea el LOT UID');
   // Cierra el teclado: si un campo tenía el foco, el teclado tapaba la cámara.
   if(document.activeElement && document.activeElement.blur) document.activeElement.blur();
   $('camFmt').value=camFmt;
@@ -1381,6 +1394,7 @@ async function iniciarNativo(){
   let ultimoAviso=0, alterna=0;
   const tick = async () => {
     if(!camStream) return;
+    if(Date.now() < camPausaHasta){ camLoop = requestAnimationFrame(tick); return; }
     if(v.readyState>=2 && v.videoWidth){
       const w=v.videoWidth, h=v.videoHeight;
       let codigos=[];
@@ -1410,6 +1424,15 @@ async function iniciarNativo(){
    no existe (para no rechazar un sobre por una lectura fantasma). */
 const votos=new Map();
 function votar(txt, fmt){
+  if(Date.now() < camPausaHasta) return;
+  const destino0 = campoCam || campoActivo().id;
+  if(destino0==='scanObs'){
+    // El código del LOT sigue a la vista: se ignora en silencio. Cualquier
+    // otro LOT_UID del catálogo tampoco puede ser un OBS UNIT.
+    if(normCode(txt)===normCode(camLotLeido) || buscarLote(txt)){
+      camInfo('Ese es el LOT UID. Apunta al código del OBS UNIT ID.'); return;
+    }
+  }
   const ahora=Date.now();
   for(const [k,x] of votos) if(ahora-x.t>2500) votos.delete(k);
   const x=votos.get(txt)||{n:0,t:ahora}; x.n++; x.t=ahora; votos.set(txt,x);
@@ -1522,20 +1545,48 @@ function recibirCam(txt, formato){
 
   const destino = campoCam || campoActivo().id;
   $(destino).value = txt;
-  camInfo(`✓ ${formato||''} ${txt}`);
+
   if(destino==='scanLot'){
     tomarLot();
-    // La cámara sigue abierta: el siguiente código es el OBS UNIT del mismo sobre.
-    campoCam = $('scanObs').disabled ? 'scanLot' : 'scanObs';
-    setTimeout(()=>camInfo(campoCam==='scanObs'?'Ahora escanea el OBS UNIT ID':'Escanea el LOT UID'),900);
+    if($('scanObs').disabled){ campoCam='scanLot'; return; }   // lectura combinada: ya evaluó
+    campoCam='scanObs'; camLotLeido=txt;
+    pausarParaObs(txt);
   } else {
     tomarObs();
-    campoCam='scanLot';
-    setTimeout(()=>camInfo('Siguiente sobre: escanea el LOT UID'),900);
+    // Segundo escaneo hecho: se cierra la cámara y queda a la vista el veredicto.
+    camPaso('✓ Listo', true);
+    setTimeout(cerrarCam, 450);
   }
 }
 
+function camPaso(t, ok){ const e=$('camPaso'); e.textContent=t; e.classList.toggle('ok',!!ok); }
+
+function pausarParaObs(lot){
+  votos.clear();
+  camPausaHasta = Date.now() + PAUSA_MS;
+  $('camStage').classList.add('pausa');
+  $('camSeguir').style.display='';
+  camInfo('LOT UID: '+lot);
+  clearInterval(camPausaTimer);
+  const pintar=()=>{
+    const falta=Math.max(0,camPausaHasta-Date.now());
+    if(falta<=0){ reanudar(); return; }
+    camPaso(`✓ LOT leído — ahora apunta al OBS UNIT ID (${Math.ceil(falta/1000)})`, true);
+  };
+  pintar(); camPausaTimer=setInterval(pintar,200);
+}
+function reanudar(){
+  clearInterval(camPausaTimer); camPausaTimer=null;
+  camPausaHasta=0; votos.clear();
+  $('camStage').classList.remove('pausa');
+  $('camSeguir').style.display='none';
+  camPaso('Escaneando OBS UNIT ID…');
+  camInfo('Apunta al código del OBS UNIT ID');
+}
+$('camSeguir').onclick=()=>reanudar();
+
 function pararCam(){
+  clearInterval(camPausaTimer); camPausaTimer=null; camPausaHasta=0;
   if(camLoop){ cancelAnimationFrame(camLoop); camLoop=null; }
   if(camStream){ camStream.getTracks().forEach(t=>t.stop()); camStream=null; camTrack=null; }
   const v=$('camVideo'); if(v){ v.srcObject=null; v.style.display='none'; }
