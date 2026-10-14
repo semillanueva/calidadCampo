@@ -57,6 +57,7 @@
   .verdict.true  { background:var(--okbg);  border-color:var(--ok);  color:var(--ok); }
   .verdict.false { background:var(--badbg); border-color:var(--bad); color:var(--bad); }
   .verdict.warn  { background:var(--amberbg); border-color:var(--amber); color:var(--amber); }
+  .verdict.paso  { background:#e8f0fb; border-color:#1565c0; color:#0d47a1; }
   .verdict small { display:block; font-size:.85rem; font-weight:600; margin-top:6px; letter-spacing:0; line-height:1.55; }
 
   .panel { display:flex; gap:18px; flex-wrap:wrap; }
@@ -304,6 +305,14 @@
     .scan-box input{font-size:1.15rem;}
   }
 
+  /* ===== Dos escaneos: etiqueta del plot y sobre ===== */
+  .paso-bar { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin:8px 0 4px; }
+  .paso-bar .pp { flex:1; min-width:150px; padding:9px 12px; border-radius:9px; border:2px dashed #c9ced4;
+                  color:#8a9096; font-weight:700; font-size:.9rem; background:#fff; line-height:1.35; }
+  .paso-bar .pp.on { border:2px solid #1565c0; color:#0d47a1; background:#e8f0fb; }
+  .paso-bar .pp.hecho { border:2px solid var(--ok); color:var(--ok); background:var(--okbg); }
+  .paso-bar .pp small { display:block; font-weight:600; font-size:.78rem; }
+
   /* ===== Envío a Google Sheets ===== */
   button.chip { border:0; font:inherit; font-size:.72rem; cursor:pointer; }
   #envDlg { border:0; border-radius:12px; padding:0; width:min(440px,94vw); color:#1a1a1a; }
@@ -383,13 +392,15 @@
 
 <!-- ==================== PESTAÑA 2: ESCANEAR ==================== -->
 <section class="pane" data-pane="escaneo">
-  <p class="hint" id="modoHint">Siembra en orden: la app espera el siguiente plot del serpentín y marca como error cualquier sobre fuera de orden.</p>
+  <p class="hint" id="modoHint">Siembra en orden, con dos escaneos por plot: primero la <b>etiqueta del plot</b> y después el <b>sobre</b>. Los dos deben ser el mismo OBS_UNIT_ID, estar en el libro y ser el plot que toca en el serpentín.</p>
   <div class="finca-bar" id="fincaBar" style="display:none"></div>
+
+  <div class="paso-bar" id="pasoBar"></div>
 
   <div class="scan-row">
     <div class="scan-box" id="boxObs">
       <div class="sb-head">
-        <label for="scanObs">OBS UNIT ID</label>
+        <label for="scanObs" id="lblScan">1 · Etiqueta del plot</label>
         <span class="sb-btns">
           <button class="btn-sec chico" data-kbd="scanObs" title="Escribir a mano">⌨ Teclado</button>
           <button class="btn-cam" data-cam="scanObs">📷 Cámara</button>
@@ -442,7 +453,7 @@
   <div class="table-wrap">
     <table id="histTable">
       <thead><tr>
-        <th>Hora</th><th>OBS UNIT ID</th><th>Plot</th><th>Faja</th><th>Surco</th>
+        <th>Hora</th><th>OBS UNIT ID</th><th>Etiqueta</th><th>Plot</th><th>Faja</th><th>Surco</th>
         <th>GID</th><th>Entry</th><th>Resultado</th><th>Ubicación</th><th>Finca</th><th>Detalle</th>
       </tr></thead>
       <tbody></tbody>
@@ -1010,8 +1021,8 @@ function revisarListo(){
 }
 function habilitarEscaneo(){
   if(!(libro&&mapa)) return;
-  $('scanObs').disabled=false; $('scanObs').placeholder='Escanea el OBS UNIT ID del sobre';
-  if($('verdict').textContent.startsWith('Carga')){ $('verdict').textContent='Escanea el sobre'; }
+  $('scanObs').disabled=false; pintarPaso();
+  if($('verdict').textContent.startsWith('Carga')){ $('verdict').textContent='Escanea la etiqueta del plot'; }
   // Una pistola lectora es un teclado: si ningún campo tiene el foco, lo que
   // teclea se pierde y parece que la app "no hace nada".
   if(document.activeElement===document.body) campoActivo().focus();
@@ -1031,7 +1042,7 @@ document.addEventListener('keydown', e=>{
 });
 
 // Anti-rebote: 'keydown' y 'change' pueden disparar el mismo código dos veces.
-let _ult={obs:{v:'',t:0}};
+let _ult={obs:{v:'',t:0}, eti:{v:'',t:0}};
 function yaProcesado(cual,v){
   const u=_ult[cual], ahora=Date.now();
   if(u.v===v && ahora-u.t<700) return true;
@@ -1066,12 +1077,114 @@ function peor(a,b){ const r={ok:0,warn:1,bad:2}; return r[b]>r[a]?b:a; }
 
 $('scanObs').addEventListener('keydown',e=>{ if(e.key==='Enter'||e.key==='Tab'){ e.preventDefault(); tomarObs(); }});
 $('scanObs').addEventListener('change',tomarObs);
+/* ------------------------------------------------------------
+   DOS ESCANEOS POR PLOT
+   1) La etiqueta que ya está puesta en el plot: se revisa contra libro,
+      mapa y orden. Si algo falla no se avanza (todavía no se abrió el sobre).
+   2) El sobre: tiene que ser idéntico a la etiqueta y pasa por todas las
+      revisiones de siempre. Se guarda un solo registro con los dos códigos.
+   ------------------------------------------------------------ */
+let pasoEti=null;   // {obs, pm, t} mientras se espera el sobre
+
 function tomarObs(){
   const crudo=$('scanObs').value;
-  const v=normCode(crudo); if(!v) return;
-  if(yaProcesado('obs',v)) return;
-  logLectura('OBS UNIT', crudo);
-  evaluar(v);
+  const v=normCode(crudo); if(!v){ $('scanObs').value=''; return; }
+  const cual = pasoEti ? 'obs' : 'eti';
+  if(yaProcesado(cual,v)){ $('scanObs').value=''; return; }
+  logLectura(pasoEti?'SOBRE':'ETIQUETA', crudo);
+  $('scanObs').value='';
+  if(pasoEti) leerSobre(v); else leerEtiqueta(v);
+}
+
+function leerEtiqueta(v){
+  const motivos=[];
+  const fila=buscarFila(v);
+  let pm=null;
+  if(!fila){
+    const otra=buscarEn(idxObsTodas, v);
+    if(otra){
+      const etq=(otra.loc||'')+(otra.inst?(otra.loc?' · inst '+otra.inst:'inst '+otra.inst):'');
+      motivos.push(`Esta etiqueta es de otra localidad: ${etq||'(sin localidad)'}, plot ${otra.plotno||otra.plot||'?'}.`);
+    } else motivos.push('Esta etiqueta no está en el libro de campo'+(locSel&&locSel!=='__todas__'?` de ${locSel}.`:'.'));
+  } else {
+    pm=buscarPlotMapa(fila);
+    if(!pm) motivos.push(`La etiqueta es del plot ${fila.plotno||fila.plot||'(sin número)'}, que no aparece en el mapa cargado.`);
+    else {
+      const esp=siguienteEsperado();
+      if(esp && esp!==pm.key){
+        const pe=idxPlotMapa.get(esp);
+        motivos.push(`Esta etiqueta es del plot ${pm.plot} (faja ${pm.faja}), pero toca el plot ${pe?pe.plot:esp}`+
+          `${pe?` (faja ${pe.faja}, surco ${pe.surcoIni}${pe.span>1?'–'+pe.surcoFin:''})`:''}. Revisa en qué plot estás.`);
+      }
+    }
+  }
+  if(motivos.length){
+    // No se avanza ni se guarda: todavía no se ha sembrado nada.
+    const vd=$('verdict'); vd.className='verdict false';
+    vd.innerHTML='ETIQUETA NO VÁLIDA<small>'+esc(v)+'</small><small>'+motivos.map(esc).join('<br>')+'</small>';
+    if(navigator.vibrate) navigator.vibrate([70,60,70,60,70]);
+    beep('bad'); log('Etiqueta rechazada:', v, motivos.join(' '));
+    pintarPaso(); $('scanObs').focus(); return;
+  }
+  pasoEti={obs:v, fila, pm, t:Date.now()};
+  const vd=$('verdict'); vd.className='verdict paso';
+  vd.innerHTML=`ETIQUETA OK — AHORA EL SOBRE<small>plot ${esc(pm.plot)} &middot; faja ${esc(pm.faja)} &middot; surco ${esc(pm.surcoIni)}${pm.span>1?'–'+esc(pm.surcoFin):''}</small>`;
+  $('kvPlot').innerHTML=`<b>Etiqueta</b><span class="mono">${esc(v)}</span>`+
+    `<b>Plot</b><span class="mono">${esc(pm.plot)}</span>`+
+    `<b>Faja / Surco</b><span>${esc(pm.faja)} / ${esc(pm.surcoIni)}${pm.span>1?'–'+esc(pm.surcoFin):''}</span>`+
+    `<b>GID</b><span class="mono">${esc(fila.gid)||'—'}</span>`+
+    `<b>Designation</b><span>${esc(fila.desig)||'—'}</span>`+
+    `<b>Entry</b><span>${esc(pm.entry||fila.entry)||'—'}</span>`;
+  if(navigator.vibrate) navigator.vibrate(50);
+  beep('paso');
+  pintarPaso(); $('scanObs').focus();
+}
+
+function leerSobre(v){
+  const eti=pasoEti;
+  // Una pistola o la cámara a veces leen dos veces seguidas la misma etiqueta:
+  // eso no es el sobre.
+  // Mismo código, o el mismo registro del libro (por si uno se escribió a mano
+  // con otras mayúsculas). Dos códigos distintos nunca caen en el mismo registro.
+  const f2=buscarFila(v);
+  const igual = v===eti.obs || (!!f2 && f2===eti.fila);
+  if(igual && Date.now()-eti.t<1500){
+    $('subObs').textContent='Se leyó otra vez la etiqueta. Escanea el sobre.'; $('scanObs').focus(); return;
+  }
+  pasoEti=null;
+  if(igual){ evaluar(v, eti.obs); return; }
+
+  // No coincide: el plot de la etiqueta queda en rojo.
+  const gps=gpsParaRegistro();
+  if(gps) gps.finca=evaluarFinca(gps);
+  const motivos=[`El sobre no corresponde a la etiqueta del plot. Etiqueta ${eti.obs} (plot ${eti.pm.plot}) / sobre ${v}.`];
+  if(f2){ const p2=buscarPlotMapa(f2); motivos.push(`Ese sobre es del plot ${p2?p2.plot:(f2.plotno||f2.plot||'?')}${p2?` (faja ${p2.faja})`:''}.`); }
+  else if(buscarEn(idxObsTodas,v)) motivos.push('Ese sobre es de otra localidad.');
+  else motivos.push('Ese sobre no está en el libro de campo.');
+  terminar(v, eti.pm.libro||buscarFila(eti.obs), eti.pm, 'bad', motivos, gps, eti.obs);
+}
+
+function cancelarPaso(){
+  if(!pasoEti) return;
+  log('Etiqueta descartada:', pasoEti.obs);
+  pasoEti=null;
+  const vd=$('verdict'); vd.className='verdict'; vd.textContent='Escanea la etiqueta del plot';
+  pintarPaso(); $('scanObs').focus();
+}
+
+function pintarPaso(){
+  const bar=$('pasoBar'); if(!bar) return;
+  const e1 = pasoEti
+    ? `<div class="pp hecho">✓ 1 · Etiqueta<small class="mono">${esc(pasoEti.obs)} · plot ${esc(pasoEti.pm.plot)}</small></div>`
+    : `<div class="pp on">1 · Etiqueta del plot<small>Escanea la etiqueta puesta en el plot</small></div>`;
+  const e2 = pasoEti
+    ? `<div class="pp on">2 · Sobre<small>Debe ser el mismo código de la etiqueta</small></div>`
+    : `<div class="pp">2 · Sobre<small>Después de la etiqueta</small></div>`;
+  bar.innerHTML = e1 + e2 + (pasoEti?'<button class="btn-peligro chico" id="btnPasoCancel" type="button">Volver a escanear etiqueta</button>':'');
+  if(pasoEti) $('btnPasoCancel').onclick=cancelarPaso;
+  $('lblScan').textContent = pasoEti ? '2 · Sobre' : '1 · Etiqueta del plot';
+  const inp=$('scanObs');
+  if(!inp.disabled) inp.placeholder = pasoEti ? 'Escanea el OBS UNIT ID del sobre' : 'Escanea la etiqueta del plot';
 }
 
 function buscarFila(cod){ return buscarEn(idxObs, cod); }
@@ -1082,7 +1195,7 @@ function buscarPlotMapa(fila){
   return null;
 }
 
-function evaluar(obsRaw){
+function evaluar(obsRaw, etiqueta){
   const obs=normCode(obsRaw);
   const motivos=[]; let nivel='ok';
   const gps = gpsParaRegistro();
@@ -1100,7 +1213,7 @@ function evaluar(obsRaw){
                    (locSel&&locSel!=='__todas__'?` de ${locSel}.`:'.'));
     }
     if(gps) gps.finca = evaluarFinca(gps);
-    terminar(obs,null,null,'bad',motivos,gps); return;
+    terminar(obs,null,null,'bad',motivos,gps,etiqueta); return;
   }
 
   const pm = buscarPlotMapa(fila);
@@ -1127,10 +1240,10 @@ function evaluar(obsRaw){
   if(gps) gps.finca = evaluarFinca(gps);   // solo rastro: no toca el veredicto
   if(!gps) motivos.push('Sin ubicación GPS en este escaneo.');
   else if(gps.edad>60) motivos.push(`Ubicación de hace ${gps.edad} s: el GPS no se ha actualizado.`);
-  terminar(obs,fila,pm,nivel,motivos,gps);
+  terminar(obs,fila,pm,nivel,motivos,gps,etiqueta);
 }
 
-function terminar(obs,fila,pm,nivel,motivos,gps){
+function terminar(obs,fila,pm,nivel,motivos,gps,etiqueta){
   const v=$('verdict');
   v.className='verdict '+(nivel==='ok'?'true':nivel==='warn'?'warn':'false');
   const titulo = nivel==='ok'?'CORRECTO':nivel==='warn'?'REVISAR':'INCORRECTO';
@@ -1138,7 +1251,8 @@ function terminar(obs,fila,pm,nivel,motivos,gps){
   v.innerHTML = titulo + (sitio?`<small>${sitio}</small>`:'') +
                 (motivos.length?`<small>${motivos.map(esc).join('<br>')}</small>`:'');
 
-  $('kvPlot').innerHTML=`<b>OBS UNIT ID</b><span class="mono">${esc(obs)||'—'}</span>`+
+  $('kvPlot').innerHTML=`<b>Sobre</b><span class="mono">${esc(obs)||'—'}</span>`+
+    `<b>Etiqueta</b><span class="mono">${esc(etiqueta)||'—'}</span>`+
     `<b>Plot</b><span class="mono">${esc(pm?pm.plot:(fila?(fila.plotno||fila.plot):''))||'—'}</span>`+
     `<b>Faja / Surco</b><span>${pm?esc(pm.faja)+' / '+esc(pm.surcoIni)+(pm.span>1?'–'+esc(pm.surcoFin):''):'—'}</span>`+
     `<b>GID</b><span class="mono">${esc(fila?fila.gid:'')||'—'}</span>`+
@@ -1153,7 +1267,7 @@ function terminar(obs,fila,pm,nivel,motivos,gps){
   historial.unshift({uid:envioUid(), ts:Date.now(),
     estudio:(mapa&&mapa.estudio)||'', loc:(mapa&&mapa.loc)||'',
     hora:new Date().toLocaleTimeString('es-GT'), fecha:new Date().toISOString().slice(0,10),
-    obs, gid:fila?fila.gid:'', desig:fila?fila.desig:'',
+    obs, etiqueta:etiqueta||'', gid:fila?fila.gid:'', desig:fila?fila.desig:'',
     plot:pm?pm.plot:(fila?(fila.plotno||fila.plot):''), faja:pm?pm.faja:'',
     surco:pm?(pm.surcoIni+(pm.span>1?'–'+pm.surcoFin:'')):'',
     entry:pm?pm.entry:(fila?fila.entry:''),
@@ -1168,6 +1282,7 @@ function terminar(obs,fila,pm,nivel,motivos,gps){
   pintarHistorial(); pintarMapa(); guardar();
 
   $('scanObs').value=''; $('subObs').textContent='';
+  pintarPaso();
   $('scanObs').focus();
 }
 
@@ -1175,7 +1290,7 @@ let actx=null;
 function beep(nivel){
   try{
     actx = actx || new (window.AudioContext||window.webkitAudioContext)();
-    const notas = nivel==='ok'?[[880,.12]] : nivel==='warn'?[[660,.12],[660,.12]] : [[220,.22],[180,.26]];
+    const notas = nivel==='paso'?[[1200,.06]] : nivel==='ok'?[[880,.12]] : nivel==='warn'?[[660,.12],[660,.12]] : [[220,.22],[180,.26]];
     let t=actx.currentTime;
     notas.forEach(([f,d])=>{
       const o=actx.createOscillator(), g=actx.createGain();
@@ -1240,6 +1355,7 @@ function pintarHistorial(){
       ? `<a class="gpslink ${h.acc>25?'gpsmal':''}" href="https://maps.google.com/?q=${h.lat},${h.lon}" target="_blank" rel="noopener">📍 ±${Math.round(h.acc)} m</a>`
       : '<span style="color:#999">sin GPS</span>';
     return `<tr><td>${esc(h.hora)}</td><td class="mono">${esc(h.obs)}</td>
+      <td class="mono">${h.etiqueta?esc(h.etiqueta):'<span style="color:#999">—</span>'}</td>
       <td class="mono">${esc(h.plot)}</td><td>${esc(h.faja)}</td><td>${esc(h.surco)}</td>
       <td class="mono">${esc(h.gid)}</td><td>${esc(h.entry)}</td><td>${b}</td><td>${ubic}</td>
       <td>${h.distFinca==null?'<span style="color:#999">—</span>'
@@ -1264,9 +1380,9 @@ function nombreBase(){ return [(mapa&&mapa.estudio)||'vivero',(mapa&&mapa.loc)||
 const fx = x => x==null ? '' : String(x);
 $('btnExport').onclick=()=>{
   bajar(`siembra_${nombreBase()}_${new Date().toISOString().slice(0,10)}.csv`, csv(
-    [['Fecha','Hora','OBS_UNIT_ID','Plot','Faja','Surco','GID','Designation','Entry','Resultado',
+    [['Fecha','Hora','OBS_UNIT_ID','Etiqueta_plot','Plot','Faja','Surco','GID','Designation','Entry','Resultado',
       'Latitud','Longitud','Precision_m','Edad_GPS_s','Finca','Distancia_finca_m','Fuera_de_finca','Ver_en_mapa','Detalle']]
-    .concat(historial.map(h=>[h.fecha||'',h.hora,h.obs,h.plot,h.faja,h.surco,h.gid,h.desig,h.entry,
+    .concat(historial.map(h=>[h.fecha||'',h.hora,h.obs,h.etiqueta||'',h.plot,h.faja,h.surco,h.gid,h.desig,h.entry,
       h.nivel==='ok'?'CORRECTO':h.nivel==='warn'?'REVISAR':'INCORRECTO',
       h.lat!=null?h.lat.toFixed(6):'', h.lon!=null?h.lon.toFixed(6):'',
       h.acc!=null?Math.round(h.acc):'', fx(h.gpsEdad),
@@ -1283,7 +1399,7 @@ $('btnExportKml').onclick=()=>{
   <Placemark>
     <name>${x(h.plot||h.obs)}</name>
     <styleUrl>#${h.nivel}</styleUrl>
-    <description>${x(`${h.nivel==='ok'?'CORRECTO':h.nivel==='warn'?'REVISAR':'INCORRECTO'} · OBS ${h.obs} · faja ${h.faja} surco ${h.surco} · GID ${h.gid} · ±${Math.round(h.acc)} m${h.distFinca!=null?` · a ${txtDist(h.distFinca)} de ${h.finca}${h.fueraFinca?' (FUERA DE LA FINCA)':''}`:''} · ${h.fecha||''} ${h.hora}${h.detalle?' · '+h.detalle:''}`)}</description>
+    <description>${x(`${h.nivel==='ok'?'CORRECTO':h.nivel==='warn'?'REVISAR':'INCORRECTO'} · OBS ${h.obs}${h.etiqueta&&h.etiqueta!==h.obs?' · ETIQUETA '+h.etiqueta:''} · faja ${h.faja} surco ${h.surco} · GID ${h.gid} · ±${Math.round(h.acc)} m${h.distFinca!=null?` · a ${txtDist(h.distFinca)} de ${h.finca}${h.fueraFinca?' (FUERA DE LA FINCA)':''}`:''} · ${h.fecha||''} ${h.hora}${h.detalle?' · '+h.detalle:''}`)}</description>
     <Point><coordinates>${h.lon.toFixed(7)},${h.lat.toFixed(7)},0</coordinates></Point>
   </Placemark>`).join('');
   const estilos = ['ok','warn','bad'].map(n=>`
@@ -1308,7 +1424,7 @@ $('btnExportPend').onclick=()=>{
 };
 $('btnClear').onclick=()=>{
   if(!confirm('¿Borrar el historial y el avance de siembra?')) return;
-  historial=[]; sembrados=new Map(); errores=new Set(); pintarHistorial(); pintarMapa(); guardar();
+  historial=[]; sembrados=new Map(); errores=new Set(); pasoEti=null; pintarPaso(); pintarHistorial(); pintarMapa(); guardar();
 };
 
 /* ============================================================
@@ -1424,7 +1540,7 @@ function cargarHojaMapa(nombre){
   const m=construirMapa(hojaAFilas(_wbMapa,nombre),nombre);
   if(!m){ $('statusMapa').innerHTML='<span class="hl-bad">No se reconoció la cuadrícula en esta hoja.</span>';
           log('Mapa: sin cuadrícula en',nombre); return; }
-  mapa=m; reindexarMapa(); estadoMapa();
+  mapa=m; reindexarMapa(); estadoMapa(); pasoEti=null; pintarPaso();
   log('Mapa',nombre,':',mapa.plots.length,'plots | orden:',(mapa.orden||[]).slice(0,8).join(' → '),'…');
   if(libro){ locSel=''; mostrarLocalidades(); reindexarLibro(); estadoLibro(); cruzar(true); }
   pintarMapa(); habilitarEscaneo(); chipArchivos(); pintarFinca(); guardar();
@@ -1467,7 +1583,7 @@ function camInfo(t){ $('camInfo').textContent=t; }
 
 async function abrirCam(campo){
   campoCam=campo; camUltima={v:'',t:0}; votos.clear();
-  camPaso('Escanea el OBS UNIT ID del sobre');
+  camPaso(pasoEti ? '2 · Escanea el SOBRE' : '1 · Escanea la ETIQUETA del plot');
   // Cierra el teclado: si un campo tenía el foco, el teclado tapaba la cámara.
   if(document.activeElement && document.activeElement.blur) document.activeElement.blur();
   $('camFmt').value=camFmt;
@@ -1974,7 +2090,7 @@ function envFila(h,uid){
     Tablet:envCfg.tabletId, Tecnico:envCfg.tecnico,
     Estudio:h.estudio!=null?h.estudio:((mapa&&mapa.estudio)||''),
     Localidad:h.loc!=null?h.loc:((mapa&&mapa.loc)||''),
-    Fecha:h.fecha||'', Hora:h.hora||'', OBS_UNIT_ID:h.obs||'',
+    Fecha:h.fecha||'', Hora:h.hora||'', OBS_UNIT_ID:h.obs||'', Etiqueta_plot:t(h.etiqueta),
     Plot:t(h.plot), Faja:t(h.faja), Surco:t(h.surco), GID:t(h.gid), Designation:t(h.desig), Entry:t(h.entry),
     Resultado:h.nivel==='ok'?'CORRECTO':h.nivel==='warn'?'REVISAR':'INCORRECTO',
     Latitud:n6(h.lat), Longitud:n6(h.lon), Precision_m:h.acc!=null?Math.round(h.acc):'',
