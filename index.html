@@ -4,6 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Verificación de Siembra en Campo — sin BMS</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#1f6f43">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
 <style>
@@ -295,6 +298,7 @@
 <header class="topbar">
   <div class="tb-row">
     <h1>Verificación de Siembra</h1>
+    <span class="chip" id="chipRed" title="Estado de conexión">…</span>
     <span class="chip" id="chipArch">sin archivos</span>
   </div>
   <nav class="tabs" role="tablist">
@@ -520,16 +524,57 @@ let orden=[], historial=[], sembrados=new Map(), errores=new Set();
 let modo='libre', volteado=false, locSel='', campo=false, zoom=1;
 let _wbLibro=null, _wbLotes=null, _wbMapa=null;
 
+/* ------------------------------------------------------------
+   Guardado. localStorage tiene un tope de ~5 MB y un inventario de lotes
+   real de BMS lo puede pasar: el guardado fallaba en silencio y al reabrir
+   la app en el campo los archivos ya no estaban. IndexedDB aguanta cientos
+   de MB. localStorage queda solo como respaldo y para migrar datos viejos.
+   ------------------------------------------------------------ */
 const LS='siembraCampo_v2';
-function guardar(){
-  try{ localStorage.setItem(LS, JSON.stringify({libro,lotes,mapa,historial,
-        sembrados:[...sembrados], errores:[...errores], modo, locSel, campo, zoom, tab:tabActual})); }
-  catch(e){ log('localStorage lleno o bloqueado:', e.message); }
+const IDB_NOMBRE='siembraCampo', IDB_TABLA='kv';
+let _idb=null;
+function abrirIdb(){
+  if(_idb) return _idb;
+  _idb = new Promise((res,rej)=>{
+    if(!('indexedDB' in window)) return rej(new Error('sin IndexedDB'));
+    const r=indexedDB.open(IDB_NOMBRE,1);
+    r.onupgradeneeded=()=>r.result.createObjectStore(IDB_TABLA);
+    r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error);
+  });
+  _idb.catch(()=>{ _idb=null; });
+  return _idb;
 }
-function restaurar(){
+async function idbPut(k,v){ const db=await abrirIdb();
+  return new Promise((res,rej)=>{ const tx=db.transaction(IDB_TABLA,'readwrite');
+    tx.objectStore(IDB_TABLA).put(v,k); tx.oncomplete=()=>res(); tx.onerror=()=>rej(tx.error); tx.onabort=()=>rej(tx.error); }); }
+async function idbGet(k){ const db=await abrirIdb();
+  return new Promise((res,rej)=>{ const r=db.transaction(IDB_TABLA).objectStore(IDB_TABLA).get(k);
+    r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error); }); }
+async function idbDel(k){ try{ const db=await abrirIdb();
+  await new Promise(res=>{ const tx=db.transaction(IDB_TABLA,'readwrite'); tx.objectStore(IDB_TABLA).delete(k); tx.oncomplete=res; tx.onerror=res; }); }catch(e){} }
+
+function paquete(){
+  return {libro,lotes,mapa,historial, sembrados:[...sembrados], errores:[...errores],
+          modo, locSel, campo, zoom, tab:tabActual, guardadoEn:Date.now()};
+}
+let _guardarTimer=null, guardadoOk=true;
+// Se agrupan los guardados: cada escaneo llama a guardar() varias veces.
+function guardar(){ clearTimeout(_guardarTimer); _guardarTimer=setTimeout(guardarYa,250); }
+async function guardarYa(){
+  const d=paquete();
+  try{ await idbPut(LS,d); guardadoOk=true; try{ localStorage.removeItem(LS); }catch(e){} }
+  catch(e){
+    try{ localStorage.setItem(LS, JSON.stringify(d)); guardadoOk=true; }
+    catch(e2){ guardadoOk=false; log('NO SE PUDO GUARDAR:', e.message,'/',e2.message); }
+  }
+  chipRed();
+}
+async function restaurar(){
   try{
-    const raw=localStorage.getItem(LS); if(!raw) return;
-    const d=JSON.parse(raw);
+    let d=null;
+    try{ d=await idbGet(LS); }catch(e){ log('IndexedDB no disponible:', e.message); }
+    if(!d){ const raw=localStorage.getItem(LS); if(raw) d=JSON.parse(raw); }  // datos de la versión anterior
+    if(!d) return;
     libro=d.libro||null; lotes=d.lotes||null; mapa=d.mapa||null;
     historial=d.historial||[]; sembrados=new Map(d.sembrados||[]);
     errores=new Set(d.errores||[]); modo=d.modo||'libre'; locSel=d.locSel||'';
@@ -1418,7 +1463,7 @@ function cargarHojaMapa(nombre){
 }
 $('btnCruzar').onclick=()=>cruzar(false);
 $('btnLimpiarTodo').onclick=()=>{ if(!confirm('¿Borrar archivos, historial y avance?')) return;
-  localStorage.removeItem(LS); location.reload(); };
+  localStorage.removeItem(LS); clearTimeout(_guardarTimer); idbDel(LS).then(()=>location.reload()); };
 
 /* ============================================================
    CÁMARA
@@ -1760,10 +1805,55 @@ function pararCam(){
 function cerrarCam(){ pararCam(); campoCam=null; if(!$('scanLot').disabled) campoActivo().focus(); }
 $('camCerrar').onclick=cerrarCam;
 
-restaurar();
-aplicarVista();
-chipArchivos();
-if(estadoArchivos().listos===3) irTab(tabGuardada && tabGuardada!=='carga' ? tabGuardada : 'escaneo');
+/* ============================================================
+   SIN INTERNET
+   El service worker (sw.js, junto a esta página) guarda la página y las
+   librerías en el teléfono la primera vez que se abre con internet. Después
+   abre aunque no haya señal.
+   ============================================================ */
+let swListo=false;
+function chipRed(){
+  const c=$('chipRed'); if(!c) return;
+  if(!guardadoOk){ c.className='chip bad'; c.textContent='⚠ no se pudo guardar'; return; }
+  if(navigator.onLine){
+    c.className = swListo?'chip ok':'chip';
+    c.textContent = swListo?'● en línea · lista sin internet':'● en línea';
+    c.title = swListo?'La página ya está guardada en el teléfono':'Preparando para funcionar sin internet…';
+  } else {
+    c.className = swListo?'chip warn':'chip bad';
+    c.textContent = swListo?'○ sin internet · funcionando':'○ sin internet';
+  }
+}
+window.addEventListener('online', chipRed);
+window.addEventListener('offline', chipRed);
+
+async function prepararSinConexion(){
+  if(!('serviceWorker' in navigator)){ log('Este navegador no tiene service worker: la página necesita internet para abrir.'); chipRed(); return; }
+  try{
+    const reg = await navigator.serviceWorker.register('sw.js');
+    await navigator.serviceWorker.ready;
+    swListo = !!(reg.active || navigator.serviceWorker.controller);
+    log('Service worker activo. Alcance:', reg.scope);
+  }catch(e){ log('No se pudo registrar sw.js:', e&&e.message, '— ¿está subido junto a esta página?'); }
+  // Pide al navegador que no borre los datos guardados si falta espacio.
+  try{ if(navigator.storage && navigator.storage.persist){
+    const ya = await navigator.storage.persisted();
+    const p = ya || await navigator.storage.persist();
+    log('Almacenamiento persistente:', p);
+    if(navigator.storage.estimate){ const e=await navigator.storage.estimate();
+      log('Espacio usado:', (e.usage/1048576).toFixed(1)+' MB de', (e.quota/1048576).toFixed(0)+' MB'); }
+  }}catch(e){}
+  chipRed();
+}
+
+(async()=>{
+  await restaurar();
+  aplicarVista();
+  chipArchivos();
+  if(estadoArchivos().listos===3) irTab(tabGuardada && tabGuardada!=='carga' ? tabGuardada : 'escaneo');
+  chipRed();
+  prepararSinConexion();
+})();
 </script>
 </body>
 </html>
