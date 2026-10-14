@@ -287,6 +287,13 @@
   .modo-bar { max-width:none !important; }
   .modo-bar button { padding:11px 8px !important; font-size:.92rem !important; }
 
+  .finca-bar { display:flex; align-items:center; gap:10px; flex-wrap:wrap; background:var(--card);
+               border:1px solid var(--line); border-radius:8px; padding:9px 12px; margin:8px 0 4px; font-size:.88rem; }
+  .finca-bar .ft { flex:1; min-width:200px; line-height:1.45; }
+  .finca-bar.sin { border-color:var(--amber); background:var(--amberbg); }
+  .finca-bar.midiendo { border-color:#1565c0; background:#e8f0fb; }
+  .gpslink { color:var(--accent); font-weight:600; text-decoration:none; white-space:nowrap; }
+  .gpsmal { color:var(--amber); }
   @media (max-width:640px){
     .container{padding:12px;}
     .verdict{font-size:1.25rem;padding:16px;}
@@ -298,11 +305,12 @@
 <header class="topbar">
   <div class="tb-row">
     <h1>Verificación de Siembra</h1>
+    <span class="chip" id="chipGps" title="Estado del GPS">📍 GPS</span>
     <span class="chip" id="chipRed" title="Estado de conexión">…</span>
     <span class="chip" id="chipArch">sin archivos</span>
   </div>
   <nav class="tabs" role="tablist">
-    <button class="tab on" data-tab="carga" role="tab"><span class="tn">1</span><span class="tl">Archivos</span><span class="tbadge" id="tbCarga">0/3</span></button>
+    <button class="tab on" data-tab="carga" role="tab"><span class="tn">1</span><span class="tl">Archivos</span><span class="tbadge" id="tbCarga">0/2</span></button>
     <button class="tab" data-tab="escaneo" role="tab" disabled><span class="tn">2</span><span class="tl">Escanear</span></button>
     <button class="tab" data-tab="hist" role="tab" disabled><span class="tn">3</span><span class="tl">Historial</span><span class="tbadge" id="tbHist">0</span></button>
   </nav>
@@ -312,7 +320,7 @@
 
 <!-- ==================== PESTAÑA 1: ARCHIVOS ==================== -->
 <section class="pane on" id="secCarga" data-pane="carga">
-  <p class="hint">Sube los tres archivos. La verificación es <b>GID del lote contra GID del plot</b>, sin conexión a BMS. Quedan guardados en la tablet.</p>
+  <p class="hint">Sube el libro de campo y el mapa. Al escanear el <b>OBS_UNIT_ID</b> del sobre, la app confirma que está en el libro y lo marca en su plot del mapa, con la ubicación GPS del escaneo. Funciona sin internet y sin BMS.</p>
 
   <div class="checklist" id="checklist"></div>
 
@@ -333,20 +341,8 @@
         <div class="map-grid" id="mapeoLibro"></div></details>
     </div>
 
-    <div class="loader" id="ldLotes">
-      <label class="ld-tit"><span class="ld-n">2</span> Catálogo de lotes</label>
-      <label class="filebtn"><input type="file" id="fileLotes" accept=".xlsx,.xls,.csv"><span>Elegir archivo</span></label>
-      <div id="hojaLotesWrap" style="display:none;margin-top:8px">
-        <label class="mini">Hoja</label>
-        <select class="sel" id="hojaLotes"></select>
-      </div>
-      <div class="file-status" id="statusLotes">Exporta de BMS el inventario con LOT_UID y GID.</div>
-      <details class="cols"><summary>Columnas detectadas</summary>
-        <div class="map-grid" id="mapeoLotes"></div></details>
-    </div>
-
     <div class="loader" id="ldMapa">
-      <label class="ld-tit"><span class="ld-n">3</span> Mapa de campo</label>
+      <label class="ld-tit"><span class="ld-n">2</span> Mapa de campo</label>
       <label class="filebtn"><input type="file" id="fileMapa" accept=".xlsx,.xls"><span>Elegir archivo</span></label>
       <div id="hojaMapaWrap" style="display:none;margin-top:8px">
         <label class="mini">Hoja / localidad</label>
@@ -372,20 +368,10 @@
     <button id="modoSec">Modo siembra (en orden)</button>
   </div>
   <p class="hint" id="modoHint">Escanea cualquier sobre y te dice a qué plot pertenece.</p>
+  <div class="finca-bar" id="fincaBar" style="display:none"></div>
 
   <div class="scan-row">
-    <div class="scan-box" id="boxLot">
-      <div class="sb-head">
-        <label for="scanLot">LOT UID</label>
-        <span class="sb-btns">
-          <button class="btn-sec chico" data-kbd="scanLot" title="Escribir a mano">⌨ Teclado</button>
-          <button class="btn-cam" data-cam="scanLot">📷 Cámara</button>
-        </span>
-      </div>
-      <input type="text" id="scanLot" placeholder="Carga los archivos primero" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" inputmode="none" disabled>
-      <div class="sub" id="subLot"></div>
-    </div>
-    <div class="scan-box waiting" id="boxObs">
+    <div class="scan-box" id="boxObs">
       <div class="sb-head">
         <label for="scanObs">OBS UNIT ID</label>
         <span class="sb-btns">
@@ -393,21 +379,21 @@
           <button class="btn-cam" data-cam="scanObs">📷 Cámara</button>
         </span>
       </div>
-      <input type="text" id="scanObs" placeholder="Escanea el LOT UID primero" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" inputmode="none" disabled>
+      <input type="text" id="scanObs" placeholder="Carga los archivos primero" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" inputmode="none" disabled>
       <div class="sub" id="subObs"></div>
     </div>
   </div>
 
-  <div class="verdict" id="verdict">Carga los tres archivos para empezar</div>
+  <div class="verdict" id="verdict">Carga los dos archivos para empezar</div>
 
   <div class="panel">
     <div>
-      <h3>Lote escaneado (origen)</h3>
-      <div class="kv" id="kvLote"><b>LOT UID</b><span>&mdash;</span><b>GID</b><span>&mdash;</span><b>Designation</b><span>&mdash;</span></div>
+      <h3>Plot (libro + mapa)</h3>
+      <div class="kv" id="kvPlot"><b>OBS UNIT ID</b><span>&mdash;</span><b>Plot</b><span>&mdash;</span><b>Faja / Surco</b><span>&mdash;</span><b>GID</b><span>&mdash;</span><b>Designation</b><span>&mdash;</span><b>Entry</b><span>&mdash;</span></div>
     </div>
     <div>
-      <h3>Plot destino (libro + mapa)</h3>
-      <div class="kv" id="kvPlot"><b>OBS UNIT ID</b><span>&mdash;</span><b>GID</b><span>&mdash;</span><b>Plot</b><span>&mdash;</span><b>Faja / Surco</b><span>&mdash;</span><b>Entry</b><span>&mdash;</span></div>
+      <h3>Ubicación del escaneo</h3>
+      <div class="kv" id="kvGps"><b>Latitud</b><span>&mdash;</span><b>Longitud</b><span>&mdash;</span><b>Precisión</b><span>&mdash;</span></div>
     </div>
   </div>
 
@@ -429,17 +415,19 @@
     <div class="box ok"><span class="n" id="sOk">0</span><span class="label">Correctos</span></div>
     <div class="box warn"><span class="n" id="sWarn">0</span><span class="label">Advertencias</span></div>
     <div class="box bad"><span class="n" id="sBad">0</span><span class="label">Errores</span></div>
+    <div class="box warn"><span class="n" id="sFuera">0</span><span class="label">Fuera de finca</span></div>
   </div>
   <div class="toolbar acciones">
     <button class="btn-big" id="btnExport">⬇ Descargar historial (CSV)</button>
     <button class="btn-sec" id="btnExportPend">⬇ Plots pendientes (CSV)</button>
+    <button class="btn-sec" id="btnExportKml">⬇ Puntos GPS (KML)</button>
     <button class="btn-peligro" id="btnClear">Limpiar historial</button>
   </div>
   <div class="table-wrap">
     <table id="histTable">
       <thead><tr>
-        <th>Hora</th><th>LOT UID</th><th>GID lote</th><th>OBS UNIT ID</th><th>GID plot</th>
-        <th>Plot</th><th>Faja</th><th>Surco</th><th>Entry</th><th>Resultado</th><th>Detalle</th>
+        <th>Hora</th><th>OBS UNIT ID</th><th>Plot</th><th>Faja</th><th>Surco</th>
+        <th>GID</th><th>Entry</th><th>Resultado</th><th>Ubicación</th><th>Finca</th><th>Detalle</th>
       </tr></thead>
       <tbody></tbody>
     </table>
@@ -457,7 +445,6 @@
   </div>
   <div id="camPaso"></div>
   <div id="camInfo">Iniciando cámara…</div>
-  <button class="camb primaria" id="camSeguir" style="display:none;margin-bottom:8px;font-size:1rem;padding:12px 22px">Ya estoy apuntando al OBS UNIT</button>
   <div id="camCtrls">
     <button class="camb" id="camTorch">Linterna</button>
     <button class="camb" id="camZoomOut">Zoom &minus;</button>
@@ -518,15 +505,15 @@ function normLocal(s){ return normLoose(String(s||'').replace(/\([^)]*\)\s*$/,''
 /* ============================================================
    ESTADO
    ============================================================ */
-let libro=null, lotes=null, mapa=null;
-let idxObs=new Map(), idxPlotLibro=new Map(), idxLote=new Map(), idxPlotMapa=new Map(), idxGidLote=new Map();
+let libro=null, mapa=null;
+let idxObs=new Map(), idxPlotLibro=new Map(), idxPlotMapa=new Map(), idxObsTodas=new Map();
 let orden=[], historial=[], sembrados=new Map(), errores=new Set();
 let modo='libre', volteado=false, locSel='', campo=false, zoom=1;
-let _wbLibro=null, _wbLotes=null, _wbMapa=null;
+let _wbLibro=null, _wbMapa=null;
 
 /* ------------------------------------------------------------
-   Guardado. localStorage tiene un tope de ~5 MB y un inventario de lotes
-   real de BMS lo puede pasar: el guardado fallaba en silencio y al reabrir
+   Guardado. localStorage tiene un tope de ~5 MB y un libro de campo grande
+   lo puede pasar: el guardado fallaba en silencio y al reabrir
    la app en el campo los archivos ya no estaban. IndexedDB aguanta cientos
    de MB. localStorage queda solo como respaldo y para migrar datos viejos.
    ------------------------------------------------------------ */
@@ -554,7 +541,7 @@ async function idbDel(k){ try{ const db=await abrirIdb();
   await new Promise(res=>{ const tx=db.transaction(IDB_TABLA,'readwrite'); tx.objectStore(IDB_TABLA).delete(k); tx.oncomplete=res; tx.onerror=res; }); }catch(e){} }
 
 function paquete(){
-  return {libro,lotes,mapa,historial, sembrados:[...sembrados], errores:[...errores],
+  return {libro,mapa,historial, sembrados:[...sembrados], errores:[...errores],
           modo, locSel, campo, zoom, tab:tabActual, guardadoEn:Date.now()};
 }
 let _guardarTimer=null, guardadoOk=true;
@@ -575,12 +562,11 @@ async function restaurar(){
     try{ d=await idbGet(LS); }catch(e){ log('IndexedDB no disponible:', e.message); }
     if(!d){ const raw=localStorage.getItem(LS); if(raw) d=JSON.parse(raw); }  // datos de la versión anterior
     if(!d) return;
-    libro=d.libro||null; lotes=d.lotes||null; mapa=d.mapa||null;
+    libro=d.libro||null; mapa=d.mapa||null;
     historial=d.historial||[]; sembrados=new Map(d.sembrados||[]);
     errores=new Set(d.errores||[]); modo=d.modo||'libre'; locSel=d.locSel||'';
     campo=false; zoom=(d.zoom==null?1:d.zoom); tabGuardada=d.tab||'';
     if(libro){ reindexarLibro(); mostrarMapeo('libro'); mostrarLocalidades(); estadoLibro(); }
-    if(lotes){ reindexarLotes(); mostrarMapeo('lotes'); estadoLotes(); }
     if(mapa){ reindexarMapa(); estadoMapa(); }
     if(libro&&mapa) cruzar(true);
     aplicarVista(); pintarMapa(); pintarHistorial(); aplicarModo(); revisarListo(); habilitarEscaneo(); chipArchivos();
@@ -616,7 +602,7 @@ function expandirMerges(ws,rows){
 }
 
 /* ============================================================
-   TABLAS CON ENCABEZADO (libro de campo y catálogo de lotes)
+   TABLAS CON ENCABEZADO (libro de campo)
    ============================================================ */
 const ALIAS_LIBRO = {
   obs:   ['obsunitid','observationunitdbid','observationunitid','obsunit','obsunitdbid','observationunit','obsuid','plotid'],
@@ -631,13 +617,6 @@ const ALIAS_LIBRO = {
   inst:  ['trialinstance','instance','instancia','trialinstancenumber','instanceno'],
   faja:  ['faja','range','rangeno','rango','fieldmaprange'],
   surco: ['surco','col','colno','column','columnno','fieldmapcolumn','columna','row','rowno']
-};
-const ALIAS_LOTES = {
-  lot:   ['lotuid','lotid','uidlote','loteuid','seedlotuid','inventoryid','lot','lote','stockid'],
-  gid:   ['gid','germplasmdbid','germplasmid'],
-  desig: ['designation','preferredname','designacion','germplasmname','nombre'],
-  ubic:  ['storagelocation','location','ubicacion','almacen','locationname'],
-  disp:  ['availablebalance','balance','disponible','actualbalance','amount','cantidad']
 };
 function detectarHeader(rows, alias){
   let mejor=-1, mejorPts=0;
@@ -705,7 +684,8 @@ function filasActivas(){
   });
 }
 function reindexarLibro(){
-  idxObs=new Map(); idxPlotLibro=new Map();
+  idxObs=new Map(); idxPlotLibro=new Map(); idxObsTodas=new Map();
+  (libro&&libro.filas||[]).forEach(f=>indexar(idxObsTodas, f.obs, f));
   filasActivas().forEach(f=>{
     indexar(idxObs, f.obs, f);
     indexar(idxPlotLibro, f.plot, f); indexar(idxPlotLibro, f.plotno, f);
@@ -738,7 +718,6 @@ function estadoLibro(){
   const n=filasActivas().length, tot=libro.filas.length;
   const falta=[];
   if(libro.cols.obs==null) falta.push('OBS_UNIT_ID');
-  if(libro.cols.gid==null) falta.push('GID');
   if(libro.cols.plot==null && libro.cols.plotno==null) falta.push('PLOT_CODE o PLOT_NO');
   $('statusLibro').innerHTML = tot
     ? `<span class="${falta.length?'hl-bad':'hl-ok'}">${n}${n!==tot?' de '+tot:''} filas activas.</span>` +
@@ -748,42 +727,14 @@ function estadoLibro(){
 }
 
 /* ---- LOTES ---- */
-function materializarLotes(){
-  materializar(lotes, ALIAS_LOTES);
-  lotes.filas = lotes.filas.filter(f=>f.lot);
-  reindexarLotes();
-}
-function reindexarLotes(){
-  idxLote=new Map(); idxGidLote=new Map();
-  (lotes&&lotes.filas||[]).forEach(f=>{
-    indexar(idxLote, f.lot, f);
-    const g=normGid(f.gid); if(g){ if(!idxGidLote.has(g)) idxGidLote.set(g,[]); idxGidLote.get(g).push(f); }
-  });
-}
-function estadoLotes(){
-  if(!lotes) return;
-  const n=lotes.filas.length;
-  const falta=[];
-  if(lotes.cols.lot==null) falta.push('LOT_UID');
-  if(lotes.cols.gid==null) falta.push('GID');
-  const d=diasDesde(lotes.cargadoEn);
-  $('statusLotes').innerHTML = n
-    ? `<span class="${falta.length?'hl-bad':'hl-ok'}">${n} lotes.</span>` +
-      (falta.length?` <span class="hl-bad">Falta asignar: ${falta.join(', ')}</span>`:'') +
-      (d!=null ? `<br><span class="${d>=7?'hl-warn':''}">Cargado hace ${d===0?'menos de un día':d+' día'+(d===1?'':'s')}.` +
-        (d>=7?' Los lotes creados en BMS después de ese export no están aquí: vuelve a exportarlo antes de salir.':'') + '</span>' : '')
-    : '<span class="hl-bad">No se leyeron lotes.</span>';
-  revisarListo(); chipArchivos();
-}
 
 /* ---- mapeo manual de columnas ---- */
-const ETQ_LIBRO={obs:'OBS_UNIT_ID *',gid:'GID *',desig:'Designation',entry:'Entry',
+const ETQ_LIBRO={obs:'OBS_UNIT_ID *',gid:'GID',desig:'Designation',entry:'Entry',
   plot:'PLOT_CODE',plotno:'PLOT_NO',rep:'Rep',rol:'Rol',loc:'Localidad',inst:'Instancia',faja:'Faja',surco:'Surco'};
-const ETQ_LOTES={lot:'LOT_UID *',gid:'GID *',desig:'Designation',ubic:'Ubicación',disp:'Disponible'};
 function mostrarMapeo(cual){
-  const t = cual==='libro'?libro:lotes; if(!t) return;
-  const etq = cual==='libro'?ETQ_LIBRO:ETQ_LOTES;
-  const cont = $(cual==='libro'?'mapeoLibro':'mapeoLotes');
+  const t = libro; if(!t) return;
+  const etq = ETQ_LIBRO;
+  const cont = $('mapeoLibro');
   cont.innerHTML = Object.keys(etq).map(k=>{
     const opts=['<option value="">(ninguna)</option>'].concat(
       t.headers.map((h,i)=>`<option value="${i}" ${t.cols[k]===i?'selected':''}>${esc(h||('col '+(i+1)))}</option>`)).join('');
@@ -793,8 +744,7 @@ function mostrarMapeo(cual){
     sel.onchange=()=>{
       const k=sel.dataset.col;
       if(sel.value==='') delete t.cols[k]; else t.cols[k]=parseInt(sel.value,10);
-      if(cual==='libro'){ materializarLibro(); mostrarLocalidades(); estadoLibro(); }
-      else { materializarLotes(); estadoLotes(); }
+      materializarLibro(); mostrarLocalidades(); estadoLibro();
       if(libro&&mapa) cruzar(true);
       guardar();
     };
@@ -994,7 +944,7 @@ function estadoMapa(){
    ============================================================ */
 function cruzar(silencioso){
   if(!libro||!mapa) return;
-  const sinLibro=[], sinObs=[], sinGid=[], sinLote=[];
+  const sinLibro=[], sinObs=[], sinGid=[];
   mapa.plots.forEach(p=>{
     let f=null;
     f = buscarEn(idxPlotLibro, p.plotNo) || buscarEn(idxPlotLibro, p.plot);
@@ -1002,16 +952,14 @@ function cruzar(silencioso){
     p.libro=f;
     if(!f.obs) sinObs.push(p.plot);
     if(!f.gid) sinGid.push(p.plot);
-    else if(lotes && !idxGidLote.has(normGid(f.gid))) sinLote.push(`${p.plot} (GID ${f.gid})`);
   });
   const total=mapa.plots.length, ok=total-sinLibro.length;
-  const problemas = sinLibro.length||sinObs.length||sinGid.length||sinLote.length;
+  const problemas = sinLibro.length||sinObs.length;
   let h=`<div class="alerta ${problemas?'':'ok'}"><b>${ok} de ${total}</b> plots del mapa encontrados en el libro de campo`;
   h += locSel && locSel!=='__todas__' ? ` (localidad: ${esc(locSel)}).` : '.';
   if(sinLibro.length) h+=`<br><span class="hl-bad">Sin fila en el libro (${sinLibro.length}):</span> ${esc(sinLibro.slice(0,15).join(', '))}${sinLibro.length>15?'…':''}`;
   if(sinObs.length)   h+=`<br><span class="hl-warn">Sin OBS_UNIT_ID (${sinObs.length}):</span> ${esc(sinObs.slice(0,15).join(', '))}${sinObs.length>15?'…':''}`;
-  if(sinGid.length)   h+=`<br><span class="hl-bad">Sin GID (${sinGid.length}):</span> ${esc(sinGid.slice(0,15).join(', '))}${sinGid.length>15?'…':''}`;
-  if(sinLote.length)  h+=`<br><span class="hl-warn">GID sin ningún lote en el catálogo (${sinLote.length}):</span> ${esc(sinLote.slice(0,8).join(' · '))}${sinLote.length>8?'…':''}`;
+  if(sinGid.length)   h+=`<br><span class="hl-warn">Sin GID (${sinGid.length}):</span> ${esc(sinGid.slice(0,15).join(', '))}${sinGid.length>15?'…':''}`;
   h+='</div>';
   $('cruceResumen').innerHTML=h;
   if(!silencioso) log('Cruce:',ok,'/',total,'| sinLibro',sinLibro.length,'| sinGid',sinGid.length);
@@ -1026,21 +974,21 @@ function revisarListo(){
   $('btnCruzar').disabled=!listo;
 }
 function habilitarEscaneo(){
-  if(!(libro&&mapa&&lotes)) return;
-  $('scanLot').disabled=false; $('scanLot').placeholder='Escanea el LOT UID del sobre';
+  if(!(libro&&mapa)) return;
+  $('scanObs').disabled=false; $('scanObs').placeholder='Escanea el OBS UNIT ID del sobre';
   if($('verdict').textContent.startsWith('Carga')){ $('verdict').textContent='Escanea el sobre'; }
   // Una pistola lectora es un teclado: si ningún campo tiene el foco, lo que
   // teclea se pierde y parece que la app "no hace nada".
   if(document.activeElement===document.body) campoActivo().focus();
 }
-function campoActivo(){ return $('scanObs').disabled ? $('scanLot') : $('scanObs'); }
+function campoActivo(){ return $('scanObs'); }
 
 // Teclas que llegan sin que ningún campo tenga el foco: se redirigen al campo
 // de escaneo que toca, sin perder el primer carácter.
 document.addEventListener('keydown', e=>{
   const t=e.target;
   if(t && (t.tagName==='INPUT'||t.tagName==='SELECT'||t.tagName==='TEXTAREA'||t.tagName==='BUTTON')) return;
-  if($('scanLot').disabled) return;
+  if($('scanObs').disabled) return;
   if(e.ctrlKey||e.altKey||e.metaKey) return;
   const campo=campoActivo();
   campo.focus();
@@ -1048,7 +996,7 @@ document.addEventListener('keydown', e=>{
 });
 
 // Anti-rebote: 'keydown' y 'change' pueden disparar el mismo código dos veces.
-let _ult={lot:{v:'',t:0}, obs:{v:'',t:0}};
+let _ult={obs:{v:'',t:0}};
 function yaProcesado(cual,v){
   const u=_ult[cual], ahora=Date.now();
   if(u.v===v && ahora-u.t<700) return true;
@@ -1072,41 +1020,15 @@ function marcarTecla(campo){
     const chars=r.n, dur=Date.now()-r.ini;
     r.n=0;
     // ráfaga de pistola: >=4 caracteres a menos de 50 ms cada uno
-    if(chars>=4 && dur/chars<50){ if(id==='scanLot') tomarLot(); else tomarObs(); }
+    if(chars>=4 && dur/chars<50) tomarObs();
   }, 300);
 }
-['scanLot','scanObs'].forEach(id=>{
+['scanObs'].forEach(id=>{
   $(id).addEventListener('input', ()=>marcarTecla($(id)));
 });
 function siguienteEsperado(){ for(const k of orden){ if(!sembrados.has(k)) return k; } return null; }
 function peor(a,b){ const r={ok:0,warn:1,bad:2}; return r[b]>r[a]?b:a; }
 
-let lotActual='';
-$('scanLot').addEventListener('keydown',e=>{ if(e.key==='Enter'||e.key==='Tab'){ e.preventDefault(); tomarLot(); }});
-$('scanLot').addEventListener('change',tomarLot);
-function tomarLot(){
-  const crudo=$('scanLot').value;
-  const v=normCode(crudo); if(!v) return;
-  if(yaProcesado('lot',v)) return;
-  logLectura('LOT UID', crudo);
-  // Lectura combinada con los dos códigos. SOLO se parte en "|": los LOT_UID
-  // de Semilla Nueva contienen "/" (ej. G1423/G1420) y partir ahí convertía
-  // un código válido en dos mitades inventadas.
-  const partes=v.split('|').filter(Boolean);
-  if(partes.length===2){
-    $('scanLot').value=partes[0]; $('scanObs').disabled=false; $('scanObs').value=partes[1];
-    $('subLot').textContent='Lectura combinada: el segundo código se tomó como OBS UNIT.';
-    evaluar(partes[0],partes[1]); return;
-  }
-  lotActual=v;
-  const lote=buscarLote(v);
-  $('subLot').innerHTML = lote
-    ? `GID <b>${esc(lote.gid)}</b> ${esc(lote.desig||'')}`
-    : '<span class="hl-bad">Lote no encontrado en el catálogo</span>';
-  $('boxObs').classList.remove('waiting');
-  $('scanObs').disabled=false; $('scanObs').placeholder='Escanea el OBS UNIT ID';
-  $('scanObs').value=''; $('scanObs').focus();
-}
 $('scanObs').addEventListener('keydown',e=>{ if(e.key==='Enter'||e.key==='Tab'){ e.preventDefault(); tomarObs(); }});
 $('scanObs').addEventListener('change',tomarObs);
 function tomarObs(){
@@ -1114,10 +1036,9 @@ function tomarObs(){
   const v=normCode(crudo); if(!v) return;
   if(yaProcesado('obs',v)) return;
   logLectura('OBS UNIT', crudo);
-  evaluar(lotActual,v);
+  evaluar(v);
 }
 
-function buscarLote(cod){ return buscarEn(idxLote, cod); }
 function buscarFila(cod){ return buscarEn(idxObs, cod); }
 function buscarPlotMapa(fila){
   if(!fila) return null;
@@ -1126,37 +1047,33 @@ function buscarPlotMapa(fila){
   return null;
 }
 
-function evaluar(lotRaw, obsRaw){
-  const lot=normCode(lotRaw), obs=normCode(obsRaw);
+function evaluar(obsRaw){
+  const obs=normCode(obsRaw);
   const motivos=[]; let nivel='ok';
+  const gps = gpsParaRegistro();
 
-  const lote = buscarLote(lot);
   const fila = buscarFila(obs);
-
-  if(!lote) motivos.push('El LOT_UID no está en el catálogo de lotes.');
-  if(!fila) motivos.push('El OBS_UNIT_ID no está en el libro de campo' +
-                         (locSel&&locSel!=='__todas__'?` de ${locSel}.`:'.'));
-  if(!lote||!fila){ terminar(lot,obs,lote,fila,null,'bad',motivos); return; }
-
-  const pm = buscarPlotMapa(fila);
-
-  // --- la comparación que importa ---
-  const gLote=normGid(lote.gid), gPlot=normGid(fila.gid);
-  if(!gLote){ nivel='bad'; motivos.push('El lote no tiene GID en el catálogo.'); }
-  else if(!gPlot){ nivel='bad'; motivos.push('El plot no tiene GID en el libro de campo.'); }
-  else if(gLote!==gPlot){
-    nivel='bad';
-    motivos.push(`GID distinto: el lote trae ${lote.gid} (${lote.desig||'sin designation'}) y el plot espera ${fila.gid} (${fila.desig||'sin designation'}).`);
-    // ¿dónde sí iba este lote?
-    const destinos=filasActivas().filter(f=>normGid(f.gid)===gLote)
-                                 .map(f=>f.plotno||f.plot).filter(Boolean);
-    if(destinos.length) motivos.push(`Ese GID corresponde a: plot ${destinos.slice(0,5).join(', ')}${destinos.length>5?'…':''}.`);
+  if(!fila){
+    // ¿Existe en el libro pero en otra localidad? Pasa cuando el mapa
+    // cargado no es el de la finca donde se está sembrando.
+    const otra = buscarEn(idxObsTodas, obs);
+    if(otra){
+      const etq=(otra.loc||'')+(otra.inst?(otra.loc?' · inst '+otra.inst:'inst '+otra.inst):'');
+      motivos.push(`Ese OBS_UNIT_ID es de otra localidad: ${etq||'(sin localidad)'}, plot ${otra.plotno||otra.plot||'?'}.`);
+    } else {
+      motivos.push('El OBS_UNIT_ID no está en el libro de campo' +
+                   (locSel&&locSel!=='__todas__'?` de ${locSel}.`:'.'));
+    }
+    if(gps) gps.finca = evaluarFinca(gps);
+    terminar(obs,null,null,'bad',motivos,gps); return;
   }
 
-  // --- ubicación y consistencia ---
-  if(!pm){ nivel=peor(nivel,'warn'); motivos.push(`El plot ${fila.plotno||fila.plot||'(sin número)'} no aparece en el mapa cargado.`); }
-  else {
-    if(pm.gid && fila.gid && normLoose(pm.gid)!==normLoose(fila.gid)){
+  const pm = buscarPlotMapa(fila);
+  if(!pm){
+    nivel='bad';
+    motivos.push(`Está en el libro, pero el plot ${fila.plotno||fila.plot||'(sin número)'} no aparece en el mapa cargado.`);
+  } else {
+    if(pm.gid && fila.gid && normGid(pm.gid)!==normGid(fila.gid)){
       nivel='bad'; motivos.push(`El mapa y el libro no coinciden en GID para ese plot: mapa ${pm.gid} / libro ${fila.gid}.`);
     }
     if(pm.entry && fila.entry && normLoose(pm.entry)!==normLoose(fila.entry)){
@@ -1172,10 +1089,13 @@ function evaluar(lotRaw, obsRaw){
       }
     }
   }
-  terminar(lot,obs,lote,fila,pm,nivel,motivos);
+  if(gps) gps.finca = evaluarFinca(gps);   // solo rastro: no toca el veredicto
+  if(!gps) motivos.push('Sin ubicación GPS en este escaneo.');
+  else if(gps.edad>60) motivos.push(`Ubicación de hace ${gps.edad} s: el GPS no se ha actualizado.`);
+  terminar(obs,fila,pm,nivel,motivos,gps);
 }
 
-function terminar(lot,obs,lote,fila,pm,nivel,motivos){
+function terminar(obs,fila,pm,nivel,motivos,gps){
   const v=$('verdict');
   v.className='verdict '+(nivel==='ok'?'true':nivel==='warn'?'warn':'false');
   const titulo = nivel==='ok'?'CORRECTO':nivel==='warn'?'REVISAR':'INCORRECTO';
@@ -1183,33 +1103,34 @@ function terminar(lot,obs,lote,fila,pm,nivel,motivos){
   v.innerHTML = titulo + (sitio?`<small>${sitio}</small>`:'') +
                 (motivos.length?`<small>${motivos.map(esc).join('<br>')}</small>`:'');
 
-  $('kvLote').innerHTML=`<b>LOT UID</b><span class="mono">${esc(lot)||'—'}</span>`+
-    `<b>GID</b><span class="mono">${esc(lote?lote.gid:'')||'—'}</span>`+
-    `<b>Designation</b><span>${esc(lote?lote.desig:'')||'—'}</span>`;
   $('kvPlot').innerHTML=`<b>OBS UNIT ID</b><span class="mono">${esc(obs)||'—'}</span>`+
-    `<b>GID</b><span class="mono">${esc(fila?fila.gid:'')||'—'}</span>`+
     `<b>Plot</b><span class="mono">${esc(pm?pm.plot:(fila?(fila.plotno||fila.plot):''))||'—'}</span>`+
     `<b>Faja / Surco</b><span>${pm?esc(pm.faja)+' / '+esc(pm.surcoIni)+(pm.span>1?'–'+esc(pm.surcoFin):''):'—'}</span>`+
+    `<b>GID</b><span class="mono">${esc(fila?fila.gid:'')||'—'}</span>`+
+    `<b>Designation</b><span>${esc(fila?fila.desig:'')||'—'}</span>`+
     `<b>Entry</b><span>${esc(pm?pm.entry:(fila?fila.entry:''))||'—'}</span>`;
+  pintarGps(gps);
 
   // Un escaneo incorrecto NO cuenta como sembrado: si contara, el puntero de
   // secuencia se saltaría ese plot y el error quedaría enterrado.
   if(pm){ if(nivel==='bad') errores.add(pm.key); else { sembrados.set(pm.key,'ok'); errores.delete(pm.key); } }
 
-  historial.unshift({hora:new Date().toLocaleTimeString('es-GT'), lot,
-    gidLote:lote?lote.gid:'', obs, gidPlot:fila?fila.gid:'',
+  historial.unshift({hora:new Date().toLocaleTimeString('es-GT'), fecha:new Date().toISOString().slice(0,10),
+    obs, gid:fila?fila.gid:'', desig:fila?fila.desig:'',
     plot:pm?pm.plot:(fila?(fila.plotno||fila.plot):''), faja:pm?pm.faja:'',
     surco:pm?(pm.surcoIni+(pm.span>1?'–'+pm.surcoFin:'')):'',
-    entry:pm?pm.entry:(fila?fila.entry:''), desig:lote?lote.desig:'',
+    entry:pm?pm.entry:(fila?fila.entry:''),
+    lat:gps?gps.lat:null, lon:gps?gps.lon:null, acc:gps?gps.acc:null, gpsEdad:gps?gps.edad:null,
+    finca:(gps&&gps.finca)?gps.finca.nombre:'', distFinca:(gps&&gps.finca)?gps.finca.dist:null,
+    fueraFinca:(gps&&gps.finca)?gps.finca.fuera:null,
     nivel, detalle:motivos.join(' ')});
 
   if(navigator.vibrate) navigator.vibrate(nivel==='ok'?90:[70,60,70,60,70]);
   beep(nivel);
   pintarHistorial(); pintarMapa(); guardar();
 
-  lotActual=''; $('scanLot').value=''; $('scanObs').value=''; $('scanObs').disabled=true;
-  $('boxObs').classList.add('waiting'); $('subLot').textContent=''; $('subObs').textContent='';
-  $('scanLot').focus();
+  $('scanObs').value=''; $('subObs').textContent='';
+  $('scanObs').focus();
 }
 
 let actx=null;
@@ -1277,16 +1198,23 @@ function pintarHistorial(){
     const b = h.nivel==='ok'?'<span class="badge-true">CORRECTO</span>'
             : h.nivel==='warn'?'<span class="badge-warn">REVISAR</span>'
             : '<span class="badge-false">INCORRECTO</span>';
-    return `<tr><td>${esc(h.hora)}</td><td class="mono">${esc(h.lot)}</td><td class="mono">${esc(h.gidLote)}</td>
-      <td class="mono">${esc(h.obs)}</td><td class="mono">${esc(h.gidPlot)}</td>
+    const ubic = h.lat!=null
+      ? `<a class="gpslink ${h.acc>25?'gpsmal':''}" href="https://maps.google.com/?q=${h.lat},${h.lon}" target="_blank" rel="noopener">📍 ±${Math.round(h.acc)} m</a>`
+      : '<span style="color:#999">sin GPS</span>';
+    return `<tr><td>${esc(h.hora)}</td><td class="mono">${esc(h.obs)}</td>
       <td class="mono">${esc(h.plot)}</td><td>${esc(h.faja)}</td><td>${esc(h.surco)}</td>
-      <td>${esc(h.entry)}</td><td>${b}</td><td style="font-size:.8rem">${esc(h.detalle)}</td></tr>`;
+      <td class="mono">${esc(h.gid)}</td><td>${esc(h.entry)}</td><td>${b}</td><td>${ubic}</td>
+      <td>${h.distFinca==null?'<span style="color:#999">—</span>'
+           : h.fueraFinca?`<span class="hl-warn">⚠ ${txtDist(h.distFinca)}</span>`
+           : `<span class="hl-ok">✓ ${txtDist(h.distFinca)}</span>`}</td>
+      <td style="font-size:.8rem">${esc(h.detalle)}</td></tr>`;
   }).join('');
   $('sTotal').textContent=historial.length;
   if($('tbHist')) $('tbHist').textContent=historial.length;
   $('sOk').textContent=historial.filter(h=>h.nivel==='ok').length;
   $('sWarn').textContent=historial.filter(h=>h.nivel==='warn').length;
   $('sBad').textContent=historial.filter(h=>h.nivel==='bad').length;
+  if($('sFuera')) $('sFuera').textContent=historial.filter(h=>h.fueraFinca===true).length;
 }
 function csv(f){ return f.map(r=>r.map(v=>{ const s=String(v==null?'':v);
   return /[",\n;]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s; }).join(';')).join('\r\n'); }
@@ -1294,12 +1222,43 @@ function bajar(n,t){ const b=new Blob(['\ufeff'+t],{type:'text/csv;charset=utf-8
   const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download=n; a.click();
   setTimeout(()=>URL.revokeObjectURL(a.href),1500); }
 
+function nombreBase(){ return [(mapa&&mapa.estudio)||'vivero',(mapa&&mapa.loc)||''].filter(Boolean).join('_').replace(/\W+/g,'_'); }
+const fx = x => x==null ? '' : String(x);
 $('btnExport').onclick=()=>{
-  const n=[(mapa&&mapa.estudio)||'vivero',(mapa&&mapa.loc)||''].filter(Boolean).join('_').replace(/\W+/g,'_');
-  bajar(`siembra_${n}_${new Date().toISOString().slice(0,10)}.csv`, csv(
-    [['Hora','LOT_UID','GID_lote','Designation','OBS_UNIT_ID','GID_plot','Plot','Faja','Surco','Entry','Resultado','Detalle']]
-    .concat(historial.map(h=>[h.hora,h.lot,h.gidLote,h.desig,h.obs,h.gidPlot,h.plot,h.faja,h.surco,h.entry,
-      h.nivel==='ok'?'CORRECTO':h.nivel==='warn'?'REVISAR':'INCORRECTO',h.detalle]))));
+  bajar(`siembra_${nombreBase()}_${new Date().toISOString().slice(0,10)}.csv`, csv(
+    [['Fecha','Hora','OBS_UNIT_ID','Plot','Faja','Surco','GID','Designation','Entry','Resultado',
+      'Latitud','Longitud','Precision_m','Edad_GPS_s','Finca','Distancia_finca_m','Fuera_de_finca','Ver_en_mapa','Detalle']]
+    .concat(historial.map(h=>[h.fecha||'',h.hora,h.obs,h.plot,h.faja,h.surco,h.gid,h.desig,h.entry,
+      h.nivel==='ok'?'CORRECTO':h.nivel==='warn'?'REVISAR':'INCORRECTO',
+      h.lat!=null?h.lat.toFixed(6):'', h.lon!=null?h.lon.toFixed(6):'',
+      h.acc!=null?Math.round(h.acc):'', fx(h.gpsEdad),
+      h.finca||'', fx(h.distFinca), h.fueraFinca==null?'':(h.fueraFinca?'SI':'NO'),
+      h.lat!=null?`https://maps.google.com/?q=${h.lat.toFixed(6)},${h.lon.toFixed(6)}`:'', h.detalle]))));
+};
+// KML: abre en Google Earth, Google My Maps o QGIS. Un punto por escaneo.
+$('btnExportKml').onclick=()=>{
+  const pts = historial.filter(h=>h.lat!=null);
+  if(!pts.length){ alert('Ningún escaneo tiene ubicación GPS todavía.'); return; }
+  const x = t => esc(t).replace(/'/g,'&apos;');
+  const color = n => n==='ok'?'ff2f8f13':n==='warn'?'ff0067ff':'ff2000b0';   // aabbggrr
+  const marcas = pts.slice().reverse().map(h=>`
+  <Placemark>
+    <name>${x(h.plot||h.obs)}</name>
+    <styleUrl>#${h.nivel}</styleUrl>
+    <description>${x(`${h.nivel==='ok'?'CORRECTO':h.nivel==='warn'?'REVISAR':'INCORRECTO'} · OBS ${h.obs} · faja ${h.faja} surco ${h.surco} · GID ${h.gid} · ±${Math.round(h.acc)} m${h.distFinca!=null?` · a ${txtDist(h.distFinca)} de ${h.finca}${h.fueraFinca?' (FUERA DE LA FINCA)':''}`:''} · ${h.fecha||''} ${h.hora}${h.detalle?' · '+h.detalle:''}`)}</description>
+    <Point><coordinates>${h.lon.toFixed(7)},${h.lat.toFixed(7)},0</coordinates></Point>
+  </Placemark>`).join('');
+  const estilos = ['ok','warn','bad'].map(n=>`
+  <Style id="${n}"><IconStyle><color>${color(n)}</color><scale>0.9</scale>
+    <Icon><href>http://maps.google.com/mapfiles/kml/shapes/placemark_circle.png</href></Icon></IconStyle></Style>`).join('');
+  const kml = `<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2"><Document>
+  <name>${x('Siembra '+nombreBase())}</name>${estilos}${marcas}
+</Document></kml>`;
+  const b=new Blob([kml],{type:'application/vnd.google-earth.kml+xml'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(b);
+  a.download=`siembra_${nombreBase()}_${new Date().toISOString().slice(0,10)}.kml`; a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),1500);
 };
 $('btnExportPend').onclick=()=>{
   if(!mapa) return;
@@ -1329,19 +1288,14 @@ function aplicarVista(){
   document.body.dataset.zoom = String(zoom);
   pintarMapa(); guardar();
 }
-// Días desde que se cargó un archivo. El catálogo de lotes es el único que
-// envejece: LOT_UID→GID nunca cambia, pero los lotes creados DESPUÉS del
-// export no existen en el snapshot y rebotarían como error.
 function diasDesde(ts){ return ts ? Math.floor((Date.now()-ts)/86400000) : null; }
 function chipArchivos(){
   actualizarTabs();
   const c=$('chipArch'); if(!c) return;
-  const falta=[]; if(!libro) falta.push('libro'); if(!lotes) falta.push('lotes'); if(!mapa) falta.push('mapa');
+  const falta=[]; if(!libro) falta.push('libro'); if(!mapa) falta.push('mapa');
   if(falta.length){ c.className='chip bad'; c.textContent='falta: '+falta.join(', '); return; }
-  const d=diasDesde(lotes.cargadoEn);
   const sitio = (mapa.loc||mapa.estudio||'').slice(0,22);
-  if(d!=null && d>=7){ c.className='chip warn'; c.textContent=`${sitio} · catálogo de ${d} días`; }
-  else { c.className='chip ok'; c.textContent=`${sitio} · ${mapa.plots.length} plots`; }
+  c.className='chip ok'; c.textContent=`${sitio} · ${mapa.plots.length} plots`;
 }
 
 /* ============================================================
@@ -1351,30 +1305,28 @@ function chipArchivos(){
    ============================================================ */
 let tabActual='carga', tabGuardada='';
 function estadoArchivos(){
-  const L = !!(libro && libro.filas && libro.filas.length && libro.cols.obs!=null && libro.cols.gid!=null);
-  const C = !!(lotes && lotes.filas && lotes.filas.length && lotes.cols.lot!=null && lotes.cols.gid!=null);
+  const L = !!(libro && libro.filas && libro.filas.length && libro.cols.obs!=null);
   const M = !!(mapa && mapa.plots && mapa.plots.length);
   return {
     libro:{ ok:L, cargado:!!libro, txt:'Libro de campo' },
-    lotes:{ ok:C, cargado:!!lotes, txt:'Catálogo de lotes' },
     mapa: { ok:M, cargado:!!mapa,  txt:'Mapa de campo' },
-    listos:[L,C,M].filter(Boolean).length
+    listos:[L,M].filter(Boolean).length
   };
 }
 function actualizarTabs(){
-  const e=estadoArchivos(), todo=e.listos===3;
-  $('tbCarga').textContent = e.listos+'/3';
+  const e=estadoArchivos(), todo=e.listos===2;
+  $('tbCarga').textContent = e.listos+'/2';
   document.querySelectorAll('.tab[data-tab="escaneo"], .tab[data-tab="hist"]').forEach(b=>b.disabled=!todo);
   $('btnIrEscaneo').disabled = !todo;
   $('btnIrEscaneo').innerHTML = todo ? 'Continuar a escanear &rarr;'
-    : `Faltan ${3-e.listos} archivo${3-e.listos===1?'':'s'} para continuar`;
-  $('checklist').innerHTML = ['libro','lotes','mapa'].map(k=>{
+    : `Falta${2-e.listos===1?'':'n'} ${2-e.listos} archivo${2-e.listos===1?'':'s'} para continuar`;
+  $('checklist').innerHTML = ['libro','mapa'].map(k=>{
     const x=e[k], cls = x.ok?'si':(x.cargado?'mal':'no');
     const ico = x.ok?'✓':(x.cargado?'!':'○');
     const det = x.ok?'' : (x.cargado?' — revisar columnas':' — pendiente');
     return `<div class="ci ${cls}"><span class="ico">${ico}</span>${x.txt}${det}</div>`;
   }).join('');
-  const ids={libro:'ldLibro',lotes:'ldLotes',mapa:'ldMapa'};
+  const ids={libro:'ldLibro',mapa:'ldMapa'};
   for(const k in ids){ const el=$(ids[k]); if(!el) continue;
     el.classList.toggle('listo', e[k].ok); el.classList.toggle('mal', e[k].cargado && !e[k].ok); }
   if(!todo && tabActual!=='carga') irTab('carga');
@@ -1386,8 +1338,9 @@ function irTab(nombre){
   document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('on', t.dataset.tab===nombre));
   document.querySelectorAll('.pane').forEach(p=>p.classList.toggle('on', p.dataset.pane===nombre));
   window.scrollTo(0,0);
-  if(nombre==='escaneo'){ pintarMapa(); habilitarEscaneo();
-    if(!$('scanLot').disabled) setTimeout(()=>campoActivo().focus(),50); }
+  if(nombre==='escaneo') iniciarGps(); else detenerGps();
+  if(nombre==='escaneo'){ pintarMapa(); habilitarEscaneo(); pintarFinca();
+    if(!$('scanObs').disabled) setTimeout(()=>campoActivo().focus(),50); }
   if(nombre==='hist') pintarHistorial();
   guardar();
 }
@@ -1427,21 +1380,6 @@ function cargarHojaLibro(nombre){
   materializarLibro(); mostrarMapeo('libro'); mostrarLocalidades(); reindexarLibro(); estadoLibro();
   if(mapa) cruzar(true); habilitarEscaneo(); chipArchivos(); guardar();
 }
-$('fileLotes').onchange=e=>{
-  const f=e.target.files[0]; if(!f) return;
-  $('statusLotes').textContent='Leyendo…';
-  leerWb(f,(wb,err)=>{
-    if(!wb){ $('statusLotes').innerHTML='<span class="hl-bad">No se pudo leer: '+esc(err&&err.message)+'</span>'; return; }
-    _wbLotes=wb; montarSelector(wb,'hojaLotes','hojaLotesWrap',cargarHojaLotes);
-  });
-};
-function cargarHojaLotes(nombre){
-  lotes=construirTabla(hojaAFilas(_wbLotes,nombre),ALIAS_LOTES);
-  lotes.cargadoEn=Date.now();
-  log('Lotes: encabezado en fila',lotes.filaHdr,'| cols',JSON.stringify(lotes.cols));
-  materializarLotes(); mostrarMapeo('lotes'); estadoLotes();
-  if(libro&&mapa) cruzar(true); habilitarEscaneo(); guardar();
-}
 $('fileMapa').onchange=e=>{
   const f=e.target.files[0]; if(!f) return;
   $('statusMapa').textContent='Leyendo…';
@@ -1459,7 +1397,7 @@ function cargarHojaMapa(nombre){
   mapa=m; reindexarMapa(); estadoMapa();
   log('Mapa',nombre,':',mapa.plots.length,'plots | orden:',(mapa.orden||[]).slice(0,8).join(' → '),'…');
   if(libro){ locSel=''; mostrarLocalidades(); reindexarLibro(); estadoLibro(); cruzar(true); }
-  pintarMapa(); habilitarEscaneo(); chipArchivos(); guardar();
+  pintarMapa(); habilitarEscaneo(); chipArchivos(); pintarFinca(); guardar();
 }
 $('btnCruzar').onclick=()=>cruzar(false);
 $('btnLimpiarTodo').onclick=()=>{ if(!confirm('¿Borrar archivos, historial y avance?')) return;
@@ -1482,10 +1420,6 @@ const FORMATOS = {
 let camFmt = (()=>{ try{ return localStorage.getItem('siembraCamFmt')||'c128'; }catch(e){ return 'c128'; } })();
 let camStream=null, camTrack=null, camDetector=null, camLoop=null, camQr=null;
 let campoCam=null, camUltima={v:'',t:0}, camZoom=null;
-// Tras leer el LOT UID se pausa el detector: el mismo código sigue en el
-// cuadro y, sin pausa, se volvía a leer como si fuera el OBS UNIT.
-const PAUSA_MS = 2500;
-let camPausaHasta=0, camLotLeido='', camPausaTimer=null;
 
 document.querySelectorAll('[data-cam]').forEach(b=>{ b.onclick=ev=>{ ev.preventDefault(); abrirCam(b.dataset.cam); }; });
 // Los campos van con inputmode="none" para que el teclado no tape la pantalla
@@ -1503,9 +1437,7 @@ function camInfo(t){ $('camInfo').textContent=t; }
 
 async function abrirCam(campo){
   campoCam=campo; camUltima={v:'',t:0}; votos.clear();
-  camPausaHasta=0; camLotLeido=''; clearInterval(camPausaTimer);
-  $('camStage').classList.remove('pausa'); $('camSeguir').style.display='none';
-  camPaso(campo==='scanObs' ? 'Escaneando OBS UNIT ID…' : 'Paso 1 de 2: escanea el LOT UID');
+  camPaso('Escanea el OBS UNIT ID del sobre');
   // Cierra el teclado: si un campo tenía el foco, el teclado tapaba la cámara.
   if(document.activeElement && document.activeElement.blur) document.activeElement.blur();
   $('camFmt').value=camFmt;
@@ -1602,7 +1534,6 @@ async function iniciarNativo(){
   let ultimoAviso=0, alterna=0;
   const tick = async () => {
     if(!camStream) return;
-    if(Date.now() < camPausaHasta){ camLoop = requestAnimationFrame(tick); return; }
     if(v.readyState>=2 && v.videoWidth){
       const w=v.videoWidth, h=v.videoHeight;
       let codigos=[];
@@ -1632,21 +1563,10 @@ async function iniciarNativo(){
    no existe (para no rechazar un sobre por una lectura fantasma). */
 const votos=new Map();
 function votar(txt, fmt){
-  if(Date.now() < camPausaHasta) return;
-  const destino0 = campoCam || campoActivo().id;
-  if(destino0==='scanObs'){
-    // El código del LOT sigue a la vista: se ignora en silencio. Cualquier
-    // otro LOT_UID del catálogo tampoco puede ser un OBS UNIT.
-    if(normCode(txt)===normCode(camLotLeido) || buscarLote(txt)){
-      camInfo('Ese es el LOT UID. Apunta al código del OBS UNIT ID.'); return;
-    }
-  }
   const ahora=Date.now();
   for(const [k,x] of votos) if(ahora-x.t>2500) votos.delete(k);
   const x=votos.get(txt)||{n:0,t:ahora}; x.n++; x.t=ahora; votos.set(txt,x);
-  const destino = campoCam || campoActivo().id;
-  const conocido = destino==='scanLot' ? !!buscarLote(txt) : !!buscarFila(txt);
-  const hacen = conocido ? 2 : 3;
+  const hacen = buscarFila(txt) ? 2 : 3;
   if(x.n>=hacen){ votos.clear(); recibirCam(txt, fmt); }
   else camInfo(`Confirmando ${txt}… ${x.n}/${hacen}`);
 }
@@ -1698,8 +1618,8 @@ $('camFoto').onclick = async ()=>{
     log('Foto fija:', bmp.width+'x'+bmp.height);
     const codigos = await camDetector.detect(bmp);
     if(codigos.length){
-      const txt=codigos[0].rawValue, destino=campoCam||campoActivo().id;
-      const conocido = destino==='scanLot' ? !!buscarLote(txt) : !!buscarFila(txt);
+      const txt=codigos[0].rawValue;
+      const conocido = !!buscarFila(txt);
       if(conocido) recibirCam(txt, codigos[0].format+' (foto)');
       else { votar(txt, codigos[0].format+' (foto)');
              camInfo(`La foto leyó ${txt}, que no está en los archivos. Toma otra para confirmar.`); }
@@ -1750,51 +1670,17 @@ function recibirCam(txt, formato){
   camUltima={v:txt,t:ahora};
   logLectura('cámara'+(formato?' '+formato:''), txt);
   if(navigator.vibrate) navigator.vibrate(70);
-
-  const destino = campoCam || campoActivo().id;
-  $(destino).value = txt;
-
-  if(destino==='scanLot'){
-    tomarLot();
-    if($('scanObs').disabled){ campoCam='scanLot'; return; }   // lectura combinada: ya evaluó
-    campoCam='scanObs'; camLotLeido=txt;
-    pausarParaObs(txt);
-  } else {
-    tomarObs();
-    // Segundo escaneo hecho: se cierra la cámara y queda a la vista el veredicto.
-    camPaso('✓ Listo', true);
-    setTimeout(cerrarCam, 450);
-  }
+  $('scanObs').value = txt;
+  tomarObs();
+  // Escaneo hecho: se cierra la cámara y queda a la vista el veredicto.
+  camPaso('✓ Listo', true);
+  setTimeout(cerrarCam, 450);
 }
 
 function camPaso(t, ok){ const e=$('camPaso'); e.textContent=t; e.classList.toggle('ok',!!ok); }
 
-function pausarParaObs(lot){
-  votos.clear();
-  camPausaHasta = Date.now() + PAUSA_MS;
-  $('camStage').classList.add('pausa');
-  $('camSeguir').style.display='';
-  camInfo('LOT UID: '+lot);
-  clearInterval(camPausaTimer);
-  const pintar=()=>{
-    const falta=Math.max(0,camPausaHasta-Date.now());
-    if(falta<=0){ reanudar(); return; }
-    camPaso(`✓ LOT leído — ahora apunta al OBS UNIT ID (${Math.ceil(falta/1000)})`, true);
-  };
-  pintar(); camPausaTimer=setInterval(pintar,200);
-}
-function reanudar(){
-  clearInterval(camPausaTimer); camPausaTimer=null;
-  camPausaHasta=0; votos.clear();
-  $('camStage').classList.remove('pausa');
-  $('camSeguir').style.display='none';
-  camPaso('Escaneando OBS UNIT ID…');
-  camInfo('Apunta al código del OBS UNIT ID');
-}
-$('camSeguir').onclick=()=>reanudar();
 
 function pararCam(){
-  clearInterval(camPausaTimer); camPausaTimer=null; camPausaHasta=0;
   if(camLoop){ cancelAnimationFrame(camLoop); camLoop=null; }
   if(camStream){ camStream.getTracks().forEach(t=>t.stop()); camStream=null; camTrack=null; }
   const v=$('camVideo'); if(v){ v.srcObject=null; v.style.display='none'; }
@@ -1802,8 +1688,194 @@ function pararCam(){
   if(camQr){ const q=camQr; camQr=null; q.stop().then(()=>q.clear()).catch(()=>{}); }
   $('camModal').style.display='none';
 }
-function cerrarCam(){ pararCam(); campoCam=null; if(!$('scanLot').disabled) campoActivo().focus(); }
+function cerrarCam(){ pararCam(); campoCam=null; if(!$('scanObs').disabled) campoActivo().focus(); }
 $('camCerrar').onclick=cerrarCam;
+
+
+/* ============================================================
+   GPS
+   Funciona SIN internet: la posición viene de los satélites, no de la red.
+   Lo único que necesita internet es ver el punto sobre un mapa (el enlace
+   del historial), y eso se puede hacer después, en la oficina.
+
+   Se usa watchPosition y no una lectura por escaneo: el GPS tarda en
+   "enganchar" (más sin internet, porque no tiene ayuda de la red), así que
+   se mantiene encendido mientras estás en la pestaña Escanear y cada escaneo
+   toma la última posición, sin esperar. Fuera de esa pestaña se apaga para
+   ahorrar batería.
+   ============================================================ */
+let gpsUltimo=null, gpsWatch=null, gpsEstado='apagado';
+function iniciarGps(){
+  if(!('geolocation' in navigator)){ gpsEstado='no disponible'; chipGps(); return; }
+  if(gpsWatch!=null) return;
+  gpsEstado='buscando'; chipGps();
+  gpsWatch = navigator.geolocation.watchPosition(p=>{
+    gpsUltimo={lat:p.coords.latitude, lon:p.coords.longitude, acc:p.coords.accuracy,
+               alt:p.coords.altitude, t:p.timestamp||Date.now()};
+    gpsEstado='ok'; chipGps();
+    if(fijando) agregarMuestra(gpsUltimo);
+    pintarFinca();
+  }, e=>{
+    gpsEstado = e.code===1 ? 'permiso negado' : e.code===2 ? 'sin señal' : 'buscando';
+    log('GPS:', gpsEstado, e.message||''); chipGps();
+  }, {enableHighAccuracy:true, maximumAge:3000, timeout:60000});
+}
+function detenerGps(){
+  if(fijando) cancelarFijado('Se salió de la pestaña Escanear.');
+  if(gpsWatch!=null){ try{ navigator.geolocation.clearWatch(gpsWatch); }catch(e){} gpsWatch=null; }
+  if(gpsEstado!=='permiso negado'){ gpsEstado='apagado'; } chipGps();
+}
+// El navegador suspende el GPS si la pantalla se apaga: al volver se reactiva.
+document.addEventListener('visibilitychange', ()=>{
+  if(document.visibilityState==='visible' && tabActual==='escaneo'){ detenerGps(); iniciarGps(); }
+});
+function gpsParaRegistro(){
+  if(!gpsUltimo) return null;
+  return {lat:gpsUltimo.lat, lon:gpsUltimo.lon, acc:gpsUltimo.acc,
+          edad:Math.max(0,Math.round((Date.now()-gpsUltimo.t)/1000))};
+}
+function chipGps(){
+  const c=$('chipGps'); if(!c) return;
+  const g=gpsParaRegistro();
+  if(gpsEstado==='permiso negado'){ c.className='chip bad'; c.textContent='📍 GPS sin permiso'; return; }
+  if(gpsEstado==='no disponible'){ c.className='chip bad'; c.textContent='📍 sin GPS'; return; }
+  if(gpsEstado==='apagado'){ c.className='chip'; c.textContent='📍 GPS'; return; }
+  if(!g){ c.className='chip warn'; c.textContent='📍 buscando satélites…'; return; }
+  const a=Math.round(g.acc);
+  c.className = (a<=15 && g.edad<=60) ? 'chip ok' : 'chip warn';
+  c.textContent = `📍 ±${a} m` + (g.edad>60?' (vieja)':'');
+}
+setInterval(()=>{ if(gpsWatch!=null) chipGps(); }, 5000);
+function pintarGps(g){
+  const k=$('kvGps'); if(!k) return;
+  if(!g){ k.innerHTML='<b>Ubicación</b><span class="hl-warn">sin GPS en este escaneo</span>'; return; }
+  k.innerHTML=`<b>Latitud</b><span class="mono">${g.lat.toFixed(6)}</span>`+
+    `<b>Longitud</b><span class="mono">${g.lon.toFixed(6)}</span>`+
+    `<b>Precisión</b><span class="${g.acc>25?'hl-warn':''}">± ${Math.round(g.acc)} m${g.edad>60?` · de hace ${g.edad} s`:''}</span>`+
+    `<b>Finca</b><span>${!g.finca ? '<span style="color:#888">sin ubicación de finca fijada</span>'
+        : g.finca.fuera ? `<span class="hl-warn">a ${txtDist(g.finca.dist)} — fuera de la finca</span>`
+        : `<span class="hl-ok">dentro (a ${txtDist(g.finca.dist)})</span>`}</span>`+
+    `<b>Mapa</b><span><a class="gpslink" href="https://maps.google.com/?q=${g.lat.toFixed(6)},${g.lon.toFixed(6)}" target="_blank" rel="noopener">ver (con internet)</a></span>`;
+}
+
+
+/* ============================================================
+   UBICACIÓN DE LA FINCA — modo rastro
+   Cada finca se "fija" una vez, estando en ella: se promedian ~30 s de GPS
+   y se guarda con el nombre del Field Location del mapa. Cada escaneo
+   registra a qué distancia de ese punto se hizo.
+
+   Solo deja RASTRO: el veredicto nunca cambia por la ubicación. El GPS puede
+   equivocarse decenas de metros (árboles, paredes, recién encendido) y un
+   sobre correcto no se debe rechazar por eso.
+
+   Las fincas se guardan aparte: "Borrar todo" no las borra.
+   ============================================================ */
+const LS_FINCAS='siembraFincas_v1';
+const RADIO_FINCA_M = 300;     // más lejos que esto (más el error del GPS) = fuera de la finca
+let FIJADO_MS = 30000;
+let fincas = {}, fijando = null;
+
+async function cargarFincas(){
+  try{ const d=await idbGet(LS_FINCAS); if(d){ fincas=d; return; } }catch(e){}
+  try{ fincas=JSON.parse(localStorage.getItem(LS_FINCAS)||'{}'); }catch(e){ fincas={}; }
+}
+async function guardarFincas(){
+  try{ await idbPut(LS_FINCAS, fincas); }
+  catch(e){ try{ localStorage.setItem(LS_FINCAS, JSON.stringify(fincas)); }catch(_){ log('No se pudo guardar la finca'); } }
+}
+function fincaActual(){
+  if(!mapa) return null;
+  const nombre=(mapa.loc||mapa.estudio||'').trim(); if(!nombre) return null;
+  return {clave: normLocal(nombre)||normLoose(nombre), nombre};
+}
+function refFinca(){ const f=fincaActual(); return f ? (fincas[f.clave]||null) : null; }
+
+function distanciaM(a,b){
+  const R=6371000, rad=x=>x*Math.PI/180;
+  const dLat=rad(b.lat-a.lat), dLon=rad(b.lon-a.lon);
+  const h=Math.sin(dLat/2)**2 + Math.cos(rad(a.lat))*Math.cos(rad(b.lat))*Math.sin(dLon/2)**2;
+  return 2*R*Math.asin(Math.sqrt(h));
+}
+function txtDist(m){ return m<1000 ? Math.round(m)+' m' : (m/1000).toFixed(m<10000?1:0)+' km'; }
+// Compara una posición contra la finca fijada. null si falta alguno de los dos.
+function evaluarFinca(g){
+  const ref=refFinca(); if(!ref || !g) return null;
+  const d=distanciaM(g,ref);
+  const limite = RADIO_FINCA_M + (g.acc||0) + (ref.acc||0);
+  return {dist:Math.round(d), fuera:d>limite, nombre:ref.nombre};
+}
+
+function iniciarFijado(){
+  const f=fincaActual();
+  if(!f){ alert('El mapa no trae el nombre de la finca (Field Location), así que no hay a qué asociar la ubicación.'); return; }
+  if(fincas[f.clave] && !confirm(`${f.nombre} ya tiene una ubicación fijada. ¿Reemplazarla por la de este lugar?`)) return;
+  if(gpsWatch==null) iniciarGps();
+  fijando={f, muestras:[], fin:Date.now()+FIJADO_MS};
+  if(gpsUltimo && Date.now()-gpsUltimo.t<5000) agregarMuestra(gpsUltimo);
+  fijando.timer=setInterval(()=>{ if(fijando && Date.now()>=fijando.fin) terminarFijado(); else pintarFinca(); }, 500);
+  pintarFinca();
+}
+function agregarMuestra(p){
+  if(!fijando || !p) return;
+  if(p.acc>50) return;                      // lecturas muy imprecisas no entran al promedio
+  const u=fijando.muestras[fijando.muestras.length-1];
+  if(u && u.t===p.t) return;                // misma lectura repetida
+  fijando.muestras.push({lat:p.lat, lon:p.lon, acc:p.acc, t:p.t});
+}
+function cancelarFijado(motivo){
+  if(!fijando) return;
+  clearInterval(fijando.timer); fijando=null;
+  if(motivo) log('Fijado de finca cancelado:', motivo);
+  pintarFinca();
+}
+function terminarFijado(){
+  const {f, muestras} = fijando; clearInterval(fijando.timer); fijando=null;
+  if(muestras.length<3){
+    alert(`Solo hubo ${muestras.length} lectura(s) con precisión mejor que 50 m. Sal a cielo abierto, lejos de árboles y techos, y vuelve a intentarlo.`);
+    pintarFinca(); return;
+  }
+  // Promedio ponderado: las lecturas más precisas pesan más.
+  let sw=0, la=0, lo=0;
+  muestras.forEach(m=>{ const w=1/(m.acc*m.acc); sw+=w; la+=m.lat*w; lo+=m.lon*w; });
+  const accs=muestras.map(m=>m.acc).sort((a,b)=>a-b);
+  fincas[f.clave]={ nombre:f.nombre, lat:la/sw, lon:lo/sw,
+                    acc:Math.round(accs[Math.floor(accs.length/2)]), n:muestras.length,
+                    fecha:new Date().toISOString() };
+  log('Finca fijada:', f.nombre, (la/sw).toFixed(6)+','+(lo/sw).toFixed(6), '±'+fincas[f.clave].acc+' m con', muestras.length, 'lecturas');
+  guardarFincas(); pintarFinca();
+}
+
+function pintarFinca(){
+  const bar=$('fincaBar'); if(!bar) return;
+  const f=fincaActual();
+  if(!f){ bar.style.display='none'; return; }
+  bar.style.display='';
+  if(fijando){
+    const falta=Math.max(0,Math.ceil((fijando.fin-Date.now())/1000));
+    const n=fijando.muestras.length;
+    bar.className='finca-bar midiendo';
+    bar.innerHTML=`<span class="ft">📌 Midiendo la ubicación de <b>${esc(f.nombre)}</b>… quédate quieto · ${falta} s · ${n} lectura${n===1?'':'s'}</span>`+
+      `<button class="btn-peligro chico" id="btnFincaCancel">Cancelar</button>`;
+    $('btnFincaCancel').onclick=()=>cancelarFijado('cancelado por el usuario');
+    return;
+  }
+  const ref=fincas[f.clave];
+  if(!ref){
+    bar.className='finca-bar sin';
+    bar.innerHTML=`<span class="ft">📌 <b>${esc(f.nombre)}</b> no tiene ubicación fijada. Hazlo una sola vez, estando en la finca.</span>`+
+      `<button class="btn-sec chico" id="btnFincaFijar">Fijar ubicación aquí</button>`;
+  } else {
+    const ev=evaluarFinca(gpsParaRegistro());
+    const fecha=new Date(ref.fecha).toLocaleDateString('es-GT');
+    const donde = !ev ? '' : (ev.fuera ? ` · <span class="hl-warn">estás a ${txtDist(ev.dist)}, fuera de la finca</span>`
+                                       : ` · <span class="hl-ok">estás a ${txtDist(ev.dist)}</span>`);
+    bar.className='finca-bar';
+    bar.innerHTML=`<span class="ft">📌 <b>${esc(f.nombre)}</b> fijada el ${fecha} (±${ref.acc} m)${donde}</span>`+
+      `<button class="btn-sec chico" id="btnFincaFijar">Volver a fijar</button>`;
+  }
+  $('btnFincaFijar').onclick=iniciarFijado;
+}
 
 /* ============================================================
    SIN INTERNET
@@ -1847,10 +1919,11 @@ async function prepararSinConexion(){
 }
 
 (async()=>{
+  await cargarFincas();
   await restaurar();
   aplicarVista();
   chipArchivos();
-  if(estadoArchivos().listos===3) irTab(tabGuardada && tabGuardada!=='carga' ? tabGuardada : 'escaneo');
+  if(estadoArchivos().listos===2) irTab(tabGuardada && tabGuardada!=='carga' ? tabGuardada : 'escaneo');
   chipRed();
   prepararSinConexion();
 })();
