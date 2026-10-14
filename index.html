@@ -107,9 +107,13 @@
   .mcell .su { color:#888; font-size:.6rem; }
   .mcell.macho { background:var(--machobg); border-color:var(--macho); }
   .mcell.hembra { background:var(--hembrabg); border-color:var(--hembra); }
-  .mcell.hecho { opacity:.45; }
+  /* Sembrado: verde fuerte y sin transparencia, para que se vea con sol en campo */
+  .mcell.hecho { opacity:1; }
   .mcell.actual { outline:3px solid var(--accent); outline-offset:-1px; box-shadow:0 0 0 3px #cfe6da; }
-  .mcell.okmark { background:var(--okbg); border-color:var(--ok); }
+  .mcell.okmark { background:#188442; border-color:#0b4d26; border-width:2px; color:#fff; }
+  .mcell.okmark .su { color:#e3f5ea; }
+  .mcell.okmark.badmark { color:inherit; }
+  .mcell.okmark.badmark .su { color:#888; }
   .mcell.badmark { background:var(--badbg); border-color:var(--bad); }
   .mcell.vacio { background:#f6f7f8; border-style:dashed; }
   .mcell .tick { position:absolute; top:2px; right:3px; font-size:.7rem; font-weight:800; }
