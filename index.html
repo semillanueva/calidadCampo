@@ -195,6 +195,95 @@
   body[data-zoom="0"] .mcell { min-height:38px; padding:2px; }
   body[data-zoom="0"] .mcell .su { display:none; }
 
+
+  /* ===== Cabecera con pestañas ===== */
+  .topbar { position:sticky; top:0; z-index:50; background:var(--accent); color:#fff;
+            padding:calc(8px + env(safe-area-inset-top,0px)) 12px 0; display:block;
+            box-shadow:0 2px 6px rgba(0,0,0,.18); }
+  .tb-row { display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding-bottom:6px; }
+  .topbar h1 { font-size:1.05rem; margin:0; flex:1; color:#fff; min-width:140px; }
+  .topbar .chip { background:rgba(255,255,255,.18); color:#fff; }
+  .topbar .chip.ok { background:#d8f3e2; color:#0d5a2c; }
+  .topbar .chip.bad { background:#ffd9d4; color:#8a0014; }
+  .topbar .chip.warn { background:#ffe8b3; color:#6b4a00; }
+  .tabs { display:flex; gap:4px; }
+  .tab { flex:1; display:flex; align-items:center; justify-content:center; gap:7px;
+         background:rgba(255,255,255,.12); color:#e3f1e8; border:0; border-radius:9px 9px 0 0;
+         padding:11px 8px; font-size:.95rem; font-weight:700; cursor:pointer; }
+  .tab .tn { width:22px; height:22px; border-radius:50%; background:rgba(255,255,255,.22);
+             display:inline-flex; align-items:center; justify-content:center; font-size:.78rem; }
+  .tab.on { background:var(--bg); color:var(--accent); }
+  .tab.on .tn { background:var(--accent); color:#fff; }
+  .tab:disabled { opacity:.45; cursor:not-allowed; }
+  .tab:disabled .tl::after { content:' 🔒'; font-size:.75rem; }
+  .tbadge { font-size:.7rem; background:rgba(255,255,255,.25); border-radius:9px; padding:1px 7px; }
+  .tab.on .tbadge { background:var(--okbg); color:var(--ok); }
+  .pane { display:none; padding-top:12px; }
+  .pane.on { display:block; }
+
+  /* ===== Lista de archivos obligatorios ===== */
+  .checklist { display:flex; gap:8px; flex-wrap:wrap; margin:4px 0 12px; }
+  .checklist .ci { flex:1; min-width:150px; display:flex; align-items:center; gap:8px; padding:10px 12px;
+                   border-radius:9px; font-weight:700; font-size:.9rem; border:2px solid; }
+  .checklist .ci.si { background:var(--okbg); border-color:var(--ok); color:var(--ok); }
+  .checklist .ci.no { background:#fff; border-color:#d0d5da; color:#8a9096; border-style:dashed; }
+  .checklist .ci.mal { background:var(--badbg); border-color:var(--bad); color:var(--bad); }
+  .checklist .ico { font-size:1.15rem; }
+
+  .loader { border-top:4px solid #d0d5da !important; }
+  .loader.listo { border-top-color:var(--ok) !important; }
+  .loader.mal { border-top-color:var(--bad) !important; }
+  .ld-tit { display:flex !important; align-items:center; gap:8px; font-size:1rem !important; }
+  .ld-n { width:24px; height:24px; border-radius:50%; background:var(--accent); color:#fff;
+          display:inline-flex; align-items:center; justify-content:center; font-size:.8rem; }
+  .mini { font-size:.74rem !important; font-weight:600; }
+  details.cols { margin-top:8px; font-size:.8rem; }
+  details.cols summary { cursor:pointer; color:var(--accent); font-weight:600; }
+
+  /* Botón de archivo: el control nativo blanco casi no se ve */
+  .filebtn { display:block !important; position:relative; margin:0 !important; }
+  .filebtn input { position:absolute; inset:0; opacity:0; width:100%; cursor:pointer; }
+  .filebtn span { display:block; text-align:center; padding:12px; border-radius:8px; font-weight:700;
+                  background:var(--accent); color:#fff; font-size:.95rem; }
+  .filebtn span::before { content:'📂 '; }
+  .loader.listo .filebtn span { background:var(--okbg); color:var(--ok); border:2px solid var(--ok); }
+  .loader.listo .filebtn span::before { content:'✓ '; }
+
+  /* ===== Botones con color ===== */
+  .btn-big, .btn-sec, .btn-peligro, .btn-cam { border-radius:9px; font-weight:700; cursor:pointer;
+             font-size:.95rem; padding:12px 18px; border:2px solid; }
+  .btn-big { background:var(--accent); border-color:var(--accent); color:#fff; box-shadow:0 2px 5px rgba(31,111,67,.3); }
+  .btn-big:hover { background:#175a37; }
+  .btn-big:disabled { background:#b9c7bf; border-color:#b9c7bf; box-shadow:none; cursor:not-allowed; }
+  .btn-sec { background:#e3f1e8; border-color:var(--accent); color:var(--accent); }
+  .btn-sec:hover { background:#cfe6d8; }
+  .btn-sec:disabled { opacity:.45; cursor:not-allowed; }
+  .btn-sec.on { background:var(--accent); color:#fff; }
+  .btn-peligro { background:#fff0ee; border-color:var(--bad); color:var(--bad); }
+  .btn-peligro:hover { background:var(--badbg); }
+  .btn-cam { background:#1565c0; border-color:#1565c0; color:#fff; padding:9px 14px; font-size:.9rem;
+             box-shadow:0 2px 5px rgba(21,101,192,.3); }
+  .btn-cam:hover { background:#0d4f9a; }
+  .chico { padding:8px 11px !important; font-size:.82rem !important; }
+  .toolbar.acciones { gap:10px; margin:14px 0; }
+  .toolbar.acciones .btn-big { flex:1; min-width:220px; font-size:1.05rem; padding:14px; }
+
+  .sb-head { display:flex; align-items:center; gap:8px; margin-bottom:8px; flex-wrap:wrap; }
+  .sb-head label { flex:1; margin:0 !important; font-size:1.05rem; }
+  .sb-btns { display:flex; gap:6px; }
+
+  .mapa-head { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin:16px 0 8px; }
+  .mapa-head h2 { margin:0; border:0; padding:0; }
+  .mapa-head .counts { flex:1; }
+  .mh-btns { display:flex; gap:6px; align-items:center; }
+  .zoomer { border:2px solid var(--accent) !important; border-radius:9px !important; }
+  .zoomer button { background:#e3f1e8 !important; color:var(--accent); font-weight:800; font-size:1rem !important;
+                   padding:6px 14px !important; border-right:2px solid var(--accent) !important; }
+  .zoomer button:last-child { border-right:0 !important; }
+
+  .modo-bar { max-width:none !important; }
+  .modo-bar button { padding:11px 8px !important; font-size:.92rem !important; }
+
   @media (max-width:640px){
     .container{padding:12px;}
     .verdict{font-size:1.25rem;padding:16px;}
@@ -203,129 +292,156 @@
 </style>
 </head>
 <body>
-<div class="topbar">
-  <h1>Verificación de Siembra</h1>
-  <span class="chip" id="chipArch">sin archivos</span>
-  <button class="sw" id="swCampo">Modo campo</button>
-</div>
+<header class="topbar">
+  <div class="tb-row">
+    <h1>Verificación de Siembra</h1>
+    <span class="chip" id="chipArch">sin archivos</span>
+  </div>
+  <nav class="tabs" role="tablist">
+    <button class="tab on" data-tab="carga" role="tab"><span class="tn">1</span><span class="tl">Archivos</span><span class="tbadge" id="tbCarga">0/3</span></button>
+    <button class="tab" data-tab="escaneo" role="tab" disabled><span class="tn">2</span><span class="tl">Escanear</span></button>
+    <button class="tab" data-tab="hist" role="tab" disabled><span class="tn">3</span><span class="tl">Historial</span><span class="tbadge" id="tbHist">0</span></button>
+  </nav>
+</header>
 
 <div class="container">
 
-<p class="hint solo-escritorio">Sin conexión a BMS. La verificación es <b>GID del lote contra GID del plot</b>: el catálogo de lotes dice qué GID trae el LOT_UID y el libro de campo dice qué GID espera el OBS_UNIT_ID. Los archivos quedan guardados en la tablet.</p>
+<!-- ==================== PESTAÑA 1: ARCHIVOS ==================== -->
+<section class="pane on" id="secCarga" data-pane="carga">
+  <p class="hint">Sube los tres archivos. La verificación es <b>GID del lote contra GID del plot</b>, sin conexión a BMS. Quedan guardados en la tablet.</p>
 
-<section id="secCarga">
-<h2>1. Cargar archivos</h2>
-<div class="loaders">
-  <div>
-    <label>Libro de campo <span class="req">obligatorio</span></label>
-    <input type="file" id="fileLibro" accept=".xlsx,.xls,.csv">
-    <div id="hojaLibroWrap" style="display:none;margin-top:8px">
-      <label style="font-size:.74rem;font-weight:600">Hoja</label>
-      <select class="sel" id="hojaLibro"></select>
+  <div class="checklist" id="checklist"></div>
+
+  <div class="loaders">
+    <div class="loader" id="ldLibro">
+      <label class="ld-tit"><span class="ld-n">1</span> Libro de campo</label>
+      <label class="filebtn"><input type="file" id="fileLibro" accept=".xlsx,.xls,.csv"><span>Elegir archivo</span></label>
+      <div id="hojaLibroWrap" style="display:none;margin-top:8px">
+        <label class="mini">Hoja</label>
+        <select class="sel" id="hojaLibro"></select>
+      </div>
+      <div id="locWrap" style="display:none;margin-top:8px">
+        <label class="mini">Localidad / instancia</label>
+        <select class="sel" id="selLoc"></select>
+      </div>
+      <div class="file-status" id="statusLibro">Sin cargar.</div>
+      <details class="cols"><summary>Columnas detectadas</summary>
+        <div class="map-grid" id="mapeoLibro"></div></details>
     </div>
-    <div id="locWrap" style="display:none;margin-top:8px">
-      <label style="font-size:.74rem;font-weight:600">Localidad / instancia</label>
-      <select class="sel" id="selLoc"></select>
+
+    <div class="loader" id="ldLotes">
+      <label class="ld-tit"><span class="ld-n">2</span> Catálogo de lotes</label>
+      <label class="filebtn"><input type="file" id="fileLotes" accept=".xlsx,.xls,.csv"><span>Elegir archivo</span></label>
+      <div id="hojaLotesWrap" style="display:none;margin-top:8px">
+        <label class="mini">Hoja</label>
+        <select class="sel" id="hojaLotes"></select>
+      </div>
+      <div class="file-status" id="statusLotes">Exporta de BMS el inventario con LOT_UID y GID.</div>
+      <details class="cols"><summary>Columnas detectadas</summary>
+        <div class="map-grid" id="mapeoLotes"></div></details>
     </div>
-    <div class="file-status" id="statusLibro">Sin cargar.</div>
-    <details style="margin-top:6px;font-size:.8rem"><summary>Columnas detectadas</summary>
-      <div class="map-grid" id="mapeoLibro"></div></details>
+
+    <div class="loader" id="ldMapa">
+      <label class="ld-tit"><span class="ld-n">3</span> Mapa de campo</label>
+      <label class="filebtn"><input type="file" id="fileMapa" accept=".xlsx,.xls"><span>Elegir archivo</span></label>
+      <div id="hojaMapaWrap" style="display:none;margin-top:8px">
+        <label class="mini">Hoja / localidad</label>
+        <select class="sel" id="hojaMapa"></select>
+      </div>
+      <div class="file-status" id="statusMapa">Sin cargar.</div>
+    </div>
   </div>
 
-  <div>
-    <label>Catálogo de lotes <span class="req">obligatorio</span></label>
-    <input type="file" id="fileLotes" accept=".xlsx,.xls,.csv">
-    <div id="hojaLotesWrap" style="display:none;margin-top:8px">
-      <label style="font-size:.74rem;font-weight:600">Hoja</label>
-      <select class="sel" id="hojaLotes"></select>
-    </div>
-    <div class="file-status" id="statusLotes">Exporta de BMS el inventario con LOT_UID y GID.</div>
-    <details style="margin-top:6px;font-size:.8rem"><summary>Columnas detectadas</summary>
-      <div class="map-grid" id="mapeoLotes"></div></details>
-  </div>
+  <div id="cruceResumen"></div>
 
-  <div>
-    <label>Mapa de campo <span class="req">obligatorio</span></label>
-    <input type="file" id="fileMapa" accept=".xlsx,.xls">
-    <div id="hojaMapaWrap" style="display:none;margin-top:8px">
-      <label style="font-size:.74rem;font-weight:600">Hoja / localidad</label>
-      <select class="sel" id="hojaMapa"></select>
-    </div>
-    <div class="file-status" id="statusMapa">Sin cargar.</div>
+  <div class="toolbar acciones">
+    <button class="btn-big" id="btnIrEscaneo" disabled>Continuar a escanear &rarr;</button>
+    <button class="btn-sec" id="btnCruzar" disabled>Revisar cruce</button>
+    <button class="btn-peligro" id="btnLimpiarTodo">Borrar todo</button>
   </div>
-</div>
-
-<div class="toolbar">
-  <button class="btn-load" id="btnCruzar" disabled>Revisar cruce antes de sembrar</button>
-  <button class="act" id="btnLimpiarTodo">Borrar todo lo cargado</button>
-</div>
-<div id="cruceResumen"></div>
 </section>
 
-<h2>2. Escaneo</h2>
-<div class="modo-bar">
-  <button id="modoLibre" class="on">Modo libre &mdash; ¿dónde va este sobre?</button>
-  <button id="modoSec">Modo siembra &mdash; en orden</button>
-</div>
-<p class="hint" id="modoHint">Escanea cualquier sobre y te dice a qué plot pertenece.</p>
-
-<div class="scan-row">
-  <div class="scan-box" id="boxLot">
-    <label>LOT UID <button class="act" style="float:right;font-size:.72rem" data-cam="scanLot">Cámara</button><button class="act kbd" style="float:right;font-size:.72rem;margin-right:5px" data-kbd="scanLot" title="Escribir a mano">Teclado</button></label>
-    <input type="text" id="scanLot" placeholder="Carga los archivos primero" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" inputmode="none" disabled>
-    <div class="sub" id="subLot"></div>
+<!-- ==================== PESTAÑA 2: ESCANEAR ==================== -->
+<section class="pane" data-pane="escaneo">
+  <div class="modo-bar">
+    <button id="modoLibre" class="on">Modo libre</button>
+    <button id="modoSec">Modo siembra (en orden)</button>
   </div>
-  <div class="scan-box waiting" id="boxObs">
-    <label>OBS UNIT ID <button class="act" style="float:right;font-size:.72rem" data-cam="scanObs">Cámara</button><button class="act kbd" style="float:right;font-size:.72rem;margin-right:5px" data-kbd="scanObs" title="Escribir a mano">Teclado</button></label>
-    <input type="text" id="scanObs" placeholder="Escanea el LOT UID primero" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" inputmode="none" disabled>
-    <div class="sub" id="subObs"></div>
+  <p class="hint" id="modoHint">Escanea cualquier sobre y te dice a qué plot pertenece.</p>
+
+  <div class="scan-row">
+    <div class="scan-box" id="boxLot">
+      <div class="sb-head">
+        <label for="scanLot">LOT UID</label>
+        <span class="sb-btns">
+          <button class="btn-sec chico" data-kbd="scanLot" title="Escribir a mano">⌨ Teclado</button>
+          <button class="btn-cam" data-cam="scanLot">📷 Cámara</button>
+        </span>
+      </div>
+      <input type="text" id="scanLot" placeholder="Carga los archivos primero" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" inputmode="none" disabled>
+      <div class="sub" id="subLot"></div>
+    </div>
+    <div class="scan-box waiting" id="boxObs">
+      <div class="sb-head">
+        <label for="scanObs">OBS UNIT ID</label>
+        <span class="sb-btns">
+          <button class="btn-sec chico" data-kbd="scanObs" title="Escribir a mano">⌨ Teclado</button>
+          <button class="btn-cam" data-cam="scanObs">📷 Cámara</button>
+        </span>
+      </div>
+      <input type="text" id="scanObs" placeholder="Escanea el LOT UID primero" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" inputmode="none" disabled>
+      <div class="sub" id="subObs"></div>
+    </div>
   </div>
-</div>
 
-<div class="verdict" id="verdict">Carga los tres archivos para empezar</div>
+  <div class="verdict" id="verdict">Carga los tres archivos para empezar</div>
 
-<div class="panel">
-  <div>
-    <h3>Lote escaneado (origen)</h3>
-    <div class="kv" id="kvLote"><b>LOT UID</b><span>&mdash;</span><b>GID</b><span>&mdash;</span><b>Designation</b><span>&mdash;</span></div>
+  <div class="panel">
+    <div>
+      <h3>Lote escaneado (origen)</h3>
+      <div class="kv" id="kvLote"><b>LOT UID</b><span>&mdash;</span><b>GID</b><span>&mdash;</span><b>Designation</b><span>&mdash;</span></div>
+    </div>
+    <div>
+      <h3>Plot destino (libro + mapa)</h3>
+      <div class="kv" id="kvPlot"><b>OBS UNIT ID</b><span>&mdash;</span><b>GID</b><span>&mdash;</span><b>Plot</b><span>&mdash;</span><b>Faja / Surco</b><span>&mdash;</span><b>Entry</b><span>&mdash;</span></div>
+    </div>
   </div>
-  <div>
-    <h3>Plot destino (libro + mapa)</h3>
-    <div class="kv" id="kvPlot"><b>OBS UNIT ID</b><span>&mdash;</span><b>GID</b><span>&mdash;</span><b>Plot</b><span>&mdash;</span><b>Faja / Surco</b><span>&mdash;</span><b>Entry</b><span>&mdash;</span></div>
+
+  <div class="mapa-head">
+    <h2>Mapa</h2>
+    <span class="counts" id="progreso">&mdash;</span>
+    <span class="mh-btns">
+      <button class="btn-sec chico" id="btnVoltear">⇄ Voltear</button>
+      <span class="zoomer"><button id="zOut" title="Más chico">&minus;</button><button id="zIn" title="Más grande">+</button></span>
+    </span>
   </div>
-</div>
+  <div class="mapa-wrap"><div class="mapa-grid" id="mapaGrid"><span class="hint">Carga el mapa.</span></div></div>
+</section>
 
-<h2>3. Mapa</h2>
-<div class="toolbar">
-  <span class="counts" id="progreso">&mdash;</span>
-  <button class="act" id="btnVoltear">Voltear vista</button>
-  <span class="zoomer"><button id="zOut" title="Más chico">&minus;</button><button id="zIn" title="Más grande">+</button></span>
-</div>
-<div class="mapa-wrap"><div class="mapa-grid" id="mapaGrid"><span class="hint">Carga el mapa.</span></div></div>
-
-<h2>4. Historial de siembra</h2>
-<div class="summary">
-  <div class="box total"><span class="n" id="sTotal">0</span><span class="label">Escaneos</span></div>
-  <div class="box ok"><span class="n" id="sOk">0</span><span class="label">Correctos</span></div>
-  <div class="box warn"><span class="n" id="sWarn">0</span><span class="label">Advertencias</span></div>
-  <div class="box bad"><span class="n" id="sBad">0</span><span class="label">Errores</span></div>
-</div>
-<div class="toolbar">
-  <button class="act" id="btnExport">Exportar historial (CSV)</button>
-  <button class="act" id="btnExportPend">Exportar pendientes (CSV)</button>
-  <button class="act" id="btnClear">Limpiar historial</button>
-</div>
-<div class="table-wrap" id="histFull">
-  <table id="histTable">
-    <thead><tr>
-      <th>Hora</th><th>LOT UID</th><th>GID lote</th><th>OBS UNIT ID</th><th>GID plot</th>
-      <th>Plot</th><th>Faja</th><th>Surco</th><th>Entry</th><th>Resultado</th><th>Detalle</th>
-    </tr></thead>
-    <tbody></tbody>
-  </table>
-</div>
-
-<details class="diag"><summary>Diagnóstico de lectura</summary><pre id="diag">(sin datos)</pre></details>
+<!-- ==================== PESTAÑA 3: HISTORIAL ==================== -->
+<section class="pane" data-pane="hist" id="histFull">
+  <div class="summary">
+    <div class="box total"><span class="n" id="sTotal">0</span><span class="label">Escaneos</span></div>
+    <div class="box ok"><span class="n" id="sOk">0</span><span class="label">Correctos</span></div>
+    <div class="box warn"><span class="n" id="sWarn">0</span><span class="label">Advertencias</span></div>
+    <div class="box bad"><span class="n" id="sBad">0</span><span class="label">Errores</span></div>
+  </div>
+  <div class="toolbar acciones">
+    <button class="btn-big" id="btnExport">⬇ Descargar historial (CSV)</button>
+    <button class="btn-sec" id="btnExportPend">⬇ Plots pendientes (CSV)</button>
+    <button class="btn-peligro" id="btnClear">Limpiar historial</button>
+  </div>
+  <div class="table-wrap">
+    <table id="histTable">
+      <thead><tr>
+        <th>Hora</th><th>LOT UID</th><th>GID lote</th><th>OBS UNIT ID</th><th>GID plot</th>
+        <th>Plot</th><th>Faja</th><th>Surco</th><th>Entry</th><th>Resultado</th><th>Detalle</th>
+      </tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+  <details class="diag"><summary>Diagnóstico de lectura</summary><pre id="diag">(sin datos)</pre></details>
+</section>
 
 </div>
 
@@ -407,7 +523,7 @@ let _wbLibro=null, _wbLotes=null, _wbMapa=null;
 const LS='siembraCampo_v2';
 function guardar(){
   try{ localStorage.setItem(LS, JSON.stringify({libro,lotes,mapa,historial,
-        sembrados:[...sembrados], errores:[...errores], modo, locSel, campo, zoom})); }
+        sembrados:[...sembrados], errores:[...errores], modo, locSel, campo, zoom, tab:tabActual})); }
   catch(e){ log('localStorage lleno o bloqueado:', e.message); }
 }
 function restaurar(){
@@ -417,7 +533,7 @@ function restaurar(){
     libro=d.libro||null; lotes=d.lotes||null; mapa=d.mapa||null;
     historial=d.historial||[]; sembrados=new Map(d.sembrados||[]);
     errores=new Set(d.errores||[]); modo=d.modo||'libre'; locSel=d.locSel||'';
-    campo=!!d.campo; zoom=(d.zoom==null?1:d.zoom);
+    campo=false; zoom=(d.zoom==null?1:d.zoom); tabGuardada=d.tab||'';
     if(libro){ reindexarLibro(); mostrarMapeo('libro'); mostrarLocalidades(); estadoLibro(); }
     if(lotes){ reindexarLotes(); mostrarMapeo('lotes'); estadoLotes(); }
     if(mapa){ reindexarMapa(); estadoMapa(); }
@@ -1122,6 +1238,7 @@ function pintarHistorial(){
       <td>${esc(h.entry)}</td><td>${b}</td><td style="font-size:.8rem">${esc(h.detalle)}</td></tr>`;
   }).join('');
   $('sTotal').textContent=historial.length;
+  if($('tbHist')) $('tbHist').textContent=historial.length;
   $('sOk').textContent=historial.filter(h=>h.nivel==='ok').length;
   $('sWarn').textContent=historial.filter(h=>h.nivel==='warn').length;
   $('sBad').textContent=historial.filter(h=>h.nivel==='bad').length;
@@ -1164,11 +1281,7 @@ function aplicarModo(){
   pintarMapa(); guardar();
 }
 function aplicarVista(){
-  document.body.classList.toggle('campo', campo);
-  if(!$('scanLot').disabled) setTimeout(()=>campoActivo().focus(),0);
   document.body.dataset.zoom = String(zoom);
-  $('swCampo').classList.toggle('on', campo);
-  $('swCampo').textContent = campo ? 'Modo campo activo' : 'Modo campo';
   pintarMapa(); guardar();
 }
 // Días desde que se cargó un archivo. El catálogo de lotes es el único que
@@ -1176,6 +1289,7 @@ function aplicarVista(){
 // export no existen en el snapshot y rebotarían como error.
 function diasDesde(ts){ return ts ? Math.floor((Date.now()-ts)/86400000) : null; }
 function chipArchivos(){
+  actualizarTabs();
   const c=$('chipArch'); if(!c) return;
   const falta=[]; if(!libro) falta.push('libro'); if(!lotes) falta.push('lotes'); if(!mapa) falta.push('mapa');
   if(falta.length){ c.className='chip bad'; c.textContent='falta: '+falta.join(', '); return; }
@@ -1184,7 +1298,56 @@ function chipArchivos(){
   if(d!=null && d>=7){ c.className='chip warn'; c.textContent=`${sitio} · catálogo de ${d} días`; }
   else { c.className='chip ok'; c.textContent=`${sitio} · ${mapa.plots.length} plots`; }
 }
-$('swCampo').onclick=()=>{ campo=!campo; aplicarVista(); };
+
+/* ============================================================
+   PESTAÑAS
+   1 Archivos → obligatoria. 2 Escanear y 3 Historial se desbloquean
+   solo cuando los tres archivos están cargados y con sus columnas clave.
+   ============================================================ */
+let tabActual='carga', tabGuardada='';
+function estadoArchivos(){
+  const L = !!(libro && libro.filas && libro.filas.length && libro.cols.obs!=null && libro.cols.gid!=null);
+  const C = !!(lotes && lotes.filas && lotes.filas.length && lotes.cols.lot!=null && lotes.cols.gid!=null);
+  const M = !!(mapa && mapa.plots && mapa.plots.length);
+  return {
+    libro:{ ok:L, cargado:!!libro, txt:'Libro de campo' },
+    lotes:{ ok:C, cargado:!!lotes, txt:'Catálogo de lotes' },
+    mapa: { ok:M, cargado:!!mapa,  txt:'Mapa de campo' },
+    listos:[L,C,M].filter(Boolean).length
+  };
+}
+function actualizarTabs(){
+  const e=estadoArchivos(), todo=e.listos===3;
+  $('tbCarga').textContent = e.listos+'/3';
+  document.querySelectorAll('.tab[data-tab="escaneo"], .tab[data-tab="hist"]').forEach(b=>b.disabled=!todo);
+  $('btnIrEscaneo').disabled = !todo;
+  $('btnIrEscaneo').innerHTML = todo ? 'Continuar a escanear &rarr;'
+    : `Faltan ${3-e.listos} archivo${3-e.listos===1?'':'s'} para continuar`;
+  $('checklist').innerHTML = ['libro','lotes','mapa'].map(k=>{
+    const x=e[k], cls = x.ok?'si':(x.cargado?'mal':'no');
+    const ico = x.ok?'✓':(x.cargado?'!':'○');
+    const det = x.ok?'' : (x.cargado?' — revisar columnas':' — pendiente');
+    return `<div class="ci ${cls}"><span class="ico">${ico}</span>${x.txt}${det}</div>`;
+  }).join('');
+  const ids={libro:'ldLibro',lotes:'ldLotes',mapa:'ldMapa'};
+  for(const k in ids){ const el=$(ids[k]); if(!el) continue;
+    el.classList.toggle('listo', e[k].ok); el.classList.toggle('mal', e[k].cargado && !e[k].ok); }
+  if(!todo && tabActual!=='carga') irTab('carga');
+}
+function irTab(nombre){
+  const b=document.querySelector(`.tab[data-tab="${nombre}"]`);
+  if(!b || b.disabled) return;
+  tabActual=nombre;
+  document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('on', t.dataset.tab===nombre));
+  document.querySelectorAll('.pane').forEach(p=>p.classList.toggle('on', p.dataset.pane===nombre));
+  window.scrollTo(0,0);
+  if(nombre==='escaneo'){ pintarMapa(); habilitarEscaneo();
+    if(!$('scanLot').disabled) setTimeout(()=>campoActivo().focus(),50); }
+  if(nombre==='hist') pintarHistorial();
+  guardar();
+}
+document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>irTab(b.dataset.tab));
+$('btnIrEscaneo').onclick=()=>{ if(libro&&mapa) cruzar(true); irTab('escaneo'); };
 $('zOut').onclick=()=>{ zoom=Math.max(0,zoom-1); aplicarVista(); };
 $('zIn').onclick =()=>{ zoom=Math.min(2,zoom+1); aplicarVista(); };
 
@@ -1600,6 +1763,7 @@ $('camCerrar').onclick=cerrarCam;
 restaurar();
 aplicarVista();
 chipArchivos();
+if(estadoArchivos().listos===3) irTab(tabGuardada && tabGuardada!=='carga' ? tabGuardada : 'escaneo');
 </script>
 </body>
 </html>
