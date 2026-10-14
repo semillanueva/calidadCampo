@@ -947,11 +947,28 @@ function construirMapa(rows, hoja){
   const loc=etiquetaSuelta(rows,'field location')||'';
   const spp=etiquetaSuelta(rows,'surcos per plot')||etiquetaSuelta(rows,'rows per plot')||'';
 
-  // dirección de avance: del rótulo, o inferida del número de plot
+  // ORDEN DE SIEMBRA: lo manda la posición de la faja, no la numeración de
+  // los plots. Serpentín: la faja de arranque va en el sentido de la columna
+  // inicial y cada faja siguiente regresa en sentido contrario, como avanza la
+  // sembradora. Se toma de "Starting Coordinates" y "Plot Layout Order" del
+  // mapa de BMS si vienen; si no, arranca en el surco 1 de la faja más baja.
+  // Una flecha en el rótulo de la faja (→ / ←) manda sobre todo lo demás.
+  const inicioTxt=etiquetaSuelta(rows,'starting coordinates')||'';
+  const ordenTxt=(etiquetaSuelta(rows,'plot layout order')||'').toLowerCase();
+  const serpentin = !ordenTxt || /serp/.test(ordenTxt);
+  const mCol=inicioTxt.match(/col(?:umn|umna)?\s*(\d+)/i), mRan=inicioTxt.match(/range\s*(\d+)|faja\s*(\d+)/i);
+  const colIni=mCol?parseInt(mCol[1],10):null;
+  const ranIni=mRan?parseInt(mRan[1]||mRan[2],10):null;
+  const nums=g.fajas.map(f=>f.faja).filter(n=>n!=null);
+  const fajaMin=nums.length?Math.min(...nums):1, fajaMax=nums.length?Math.max(...nums):1;
+  const desdeArriba = ranIni!=null && ranIni===fajaMax && fajaMax!==fajaMin;   // arranca en la faja más alta
+  const dirIni = (colIni!=null && colIni===g.surcos[g.surcos.length-1] && colIni!==g.surcos[0]) ? 'izq' : 'der';
+  const fajaIni = desdeArriba ? fajaMax : fajaMin;
   g.fajas.forEach(f=>{
+    f.dirFlecha = !!f.dir;
     if(f.dir) return;
-    if(f.plots.length<2){ f.dir='der'; return; }
-    f.dir = numPlot(f.plots[f.plots.length-1].plot) >= numPlot(f.plots[0].plot) ? 'der' : 'izq';
+    const paso = Math.abs((f.faja??fajaIni) - fajaIni);
+    f.dir = (!serpentin || paso%2===0) ? dirIni : (dirIni==='der'?'izq':'der');
   });
 
   const plots=[];
@@ -960,12 +977,12 @@ function construirMapa(rows, hoja){
   }));
 
   const ordenPlots=[];
-  [...g.fajas].sort((a,b)=>(a.faja??0)-(b.faja??0)).forEach(f=>{
+  [...g.fajas].sort((a,b)=>desdeArriba?(b.faja??0)-(a.faja??0):(a.faja??0)-(b.faja??0)).forEach(f=>{
     const ps = f.dir==='der' ? f.plots : [...f.plots].reverse();
     ps.forEach(p=>ordenPlots.push(p.key));
   });
 
-  return {estudio, instancia, loc, hoja, surcosPorPlot:spp,
+  return {estudio, instancia, loc, hoja, surcosPorPlot:spp, inicio:inicioTxt, serpentin,
           surcos:g.surcos, fajas:g.fajas, plots, orden:ordenPlots};
 }
 function reindexarMapa(){
