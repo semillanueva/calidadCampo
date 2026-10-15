@@ -491,7 +491,7 @@
   <div class="in">
     <h3>Envío a Google Sheets</h3>
     <label for="envTec">Tablet o técnico</label>
-    <input id="envTec" autocomplete="off" placeholder="Ej.: Tablet 2 – Allan">
+    <input id="envTec" autocomplete="off" placeholder="Ej.: Tablet 2 – Alessandro">
     <label for="envUrl">URL del Apps Script</label>
     <input id="envUrl" type="url" autocomplete="off" inputmode="url" placeholder="https://script.google.com/macros/s/…/exec">
     <label for="envClave">Clave</label>
@@ -511,7 +511,7 @@
 const $ = id => document.getElementById(id);
 // Cambiar en cada versión que se sube: sirve para confirmar en la tablet que
 // ya tomó la última (se ve abajo en la pestaña Archivos).
-const VERSION_APP = '14-oct-2026 · v5 (etiqueta + sobre, orden por faja)';
+const VERSION_APP = '15-oct-2026 · v7 (CSV y KML: elegir dónde guardar)';
 const esc = s => String(s==null?'':s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const LOG = [];
 function log(...a){ LOG.push(a.map(x=>typeof x==='string'?x:JSON.stringify(x)).join(' ')); $('diag').textContent = LOG.slice(-250).join('\n'); }
@@ -1404,9 +1404,46 @@ function pintarHistorial(){
 }
 function csv(f){ return f.map(r=>r.map(v=>{ const s=String(v==null?'':v);
   return /[",\n;]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s; }).join(';')).join('\r\n'); }
-function bajar(n,t){ const b=new Blob(['\ufeff'+t],{type:'text/csv;charset=utf-8;'});
+// Al descargar un CSV o el KML se pregunta dónde guardarlo (los archivos van a Dropbox):
+// - Computadora (Chrome/Edge): ventana "Guardar como" para elegir la carpeta,
+//   por ejemplo la de Dropbox.
+// - Tablet o celular: se abre "Compartir" y se elige Dropbox ("Guardar en
+//   Dropbox"). Chrome en Android no tiene "Guardar como".
+// - Chrome en Android solo deja compartir algunos tipos (imágenes, PDF, texto,
+//   CSV…); el KML no está entre ellos. En ese caso, y en navegadores sin
+//   ninguna de las dos opciones, se descarga a Descargas y se avisa cómo subirlo.
+// Si la persona cancela, no se guarda nada (puede volver a tocar el botón).
+async function guardarArchivo(n, b, tipo){
+  if(window.showSaveFilePicker){
+    try{
+      const h=await window.showSaveFilePicker({suggestedName:n,
+        types:[{description:tipo.desc, accept:{[tipo.mime]:[tipo.ext]}}]});
+      const w=await h.createWritable(); await w.write(b); await w.close();
+      log('Guardado:', n); return;
+    }catch(e){ if(e&&e.name==='AbortError') return; log('Guardar como no disponible:', e&&e.message); }
+  }
+  try{
+    const f=new File([b], n, {type:tipo.mime});
+    if(navigator.canShare && navigator.canShare({files:[f]})){
+      await navigator.share({files:[f], title:n});
+      log('Compartido:', n); return;
+    }
+  }catch(e){ if(e&&e.name==='AbortError') return; log('Compartir falló:', e&&e.message); }
+  descargaDirecta(n,b);
+  if(tipo.avisoDescargas && /Android|iPhone|iPad|Mobile/i.test(navigator.userAgent)){
+    setTimeout(()=>alert(`El archivo ${n} quedó en la carpeta Descargas.\n\n`+
+      'Para guardarlo en Dropbox: abre la app de Dropbox → toca + → Subir archivo → '+
+      'busca la carpeta Descargas → elige el archivo → elige la carpeta del ensayo.'), 400);
+  }
+}
+function bajar(n,t){
+  return guardarArchivo(n, new Blob(['\ufeff'+t],{type:'text/csv;charset=utf-8;'}),
+    {desc:'Archivo CSV', mime:'text/csv', ext:'.csv', avisoDescargas:true});
+}
+function descargaDirecta(n,b){
   const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download=n; a.click();
-  setTimeout(()=>URL.revokeObjectURL(a.href),1500); }
+  setTimeout(()=>URL.revokeObjectURL(a.href),1500);
+}
 
 function nombreBase(){ return [(mapa&&mapa.estudio)||'vivero',(mapa&&mapa.loc)||''].filter(Boolean).join('_').replace(/\W+/g,'_'); }
 const fx = x => x==null ? '' : String(x);
@@ -1441,10 +1478,9 @@ $('btnExportKml').onclick=()=>{
 <kml xmlns="http://www.opengis.net/kml/2.2"><Document>
   <name>${x('Siembra '+nombreBase())}</name>${estilos}${marcas}
 </Document></kml>`;
-  const b=new Blob([kml],{type:'application/vnd.google-earth.kml+xml'});
-  const a=document.createElement('a'); a.href=URL.createObjectURL(b);
-  a.download=`siembra_${nombreBase()}_${new Date().toISOString().slice(0,10)}.kml`; a.click();
-  setTimeout(()=>URL.revokeObjectURL(a.href),1500);
+  guardarArchivo(`siembra_${nombreBase()}_${new Date().toISOString().slice(0,10)}.kml`,
+    new Blob([kml],{type:'application/vnd.google-earth.kml+xml'}),
+    {desc:'Puntos GPS (KML)', mime:'application/vnd.google-earth.kml+xml', ext:'.kml', avisoDescargas:true});
 };
 $('btnExportPend').onclick=()=>{
   if(!mapa) return;
