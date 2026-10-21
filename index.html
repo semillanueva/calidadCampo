@@ -511,7 +511,7 @@
 const $ = id => document.getElementById(id);
 // Cambiar en cada versión que se sube: sirve para confirmar en la tablet que
 // ya tomó la última (se ve abajo en la pestaña Archivos).
-const VERSION_APP = '15-oct-2026 · v7 (CSV y KML: elegir dónde guardar)';
+const VERSION_APP = '21-oct-2026 · v8 (mapas con PLOT_CODE, aviso de faja/surco)';
 const esc = s => String(s==null?'':s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const LOG = [];
 function log(...a){ LOG.push(a.map(x=>typeof x==='string'?x:JSON.stringify(x)).join(' ')); $('diag').textContent = LOG.slice(-250).join('\n'); }
@@ -806,16 +806,20 @@ function mostrarMapeo(cual){
    ============================================================ */
 // Extrae pares "Etiqueta: Valor" en cualquier orden y en una o varias líneas.
 // Cubre "Plot:X GID:Y Role:Z Entry:W" (Cross), "Plot Code:X Plot No:Y ..."
-// (Backcross) y "PlotCod: X GID: Y Entry: Z Plot No: W" (Self). Las etiquetas
-// se normalizan sin espacios ni acentos, así que PlotCod / Plot Code / PLOT
-// CODE caen todas en la misma llave.
+// (Backcross), "PlotCod: X GID: Y Entry: Z Plot No: W" (Self) y
+// "PLOT_CODE: X GID: Y FAJA: F SURCO: S ROLE: R" (Cross 2026C). Las etiquetas
+// se normalizan sin espacios, guiones bajos ni acentos, así que PlotCod /
+// Plot Code / PLOT_CODE caen todas en la misma llave.
 const ETQ_CELDA = {
   plot:   ['plotcode','plotcod','plot','codigoplot','codplot','codigo'],
   plotno: ['plotno','plotnumber','plotnum','numeroplot','noplot'],
   gid:    ['gid','germplasmid'],
   entry:  ['entry','entryno','entrynumber','entrada'],
   rol:    ['role','rol','entrytype','tipo'],
-  rep:    ['rep','repno','replicate','replica','repeticion']
+  rep:    ['rep','repno','replicate','replica','repeticion'],
+  // Solo para comparar: la posición la manda la cuadrícula del mapa.
+  faja:   ['faja','range','rango'],
+  surco:  ['surco','row','columna']
 };
 function etqCelda(k){ return String(k).toLowerCase().normalize('NFD')
   .replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]/g,''); }
@@ -823,12 +827,13 @@ function parseCeldaMapa(raw){
   if(raw==null) return null;
   const text=String(raw).trim(); if(!text) return null;
   const pares={};
-  const rx=/([A-Za-zÁÉÍÓÚáéíóúñÑ][A-Za-zÁÉÍÓÚáéíóúñÑ\s]{0,20}?):\s*(\S+)/g;
+  const rx=/([A-Za-zÁÉÍÓÚáéíóúñÑ][A-Za-zÁÉÍÓÚáéíóúñÑ_\s]{0,20}?):\s*(\S+)/g;
   let m; while((m=rx.exec(text))!==null) pares[etqCelda(m[1])]=m[2].trim();
   const val=k=>{ for(const a of ETQ_CELDA[k]) if(pares[a]!=null) return pares[a]; return ''; };
   const plot=val('plot');
   if(plot) return {plot, plotNo:val('plotno'), entry:val('entry'),
-                   gid:val('gid'), rol:val('rol'), rep:val('rep')};
+                   gid:val('gid'), rol:val('rol'), rep:val('rep'),
+                   fajaTxt:val('faja'), surcoTxt:val('surco')};
   // Formato Finca / Registro / Screening: "Plot-72 \n Entry 21 \n Rep 2"
   let p2=null,e2='',r2='';
   text.split(/\r?\n/).map(l=>l.trim()).filter(Boolean).forEach(l=>{
@@ -894,7 +899,8 @@ function agruparPlots(celdas, surcos){
     const k=normLoose(cel.plot);
     if(act && act.key===k){ act.surcoFin=s; act.span++; return; }
     act={key:k, plot:cel.plot, plotNo:cel.plotNo||cel.plot, entry:cel.entry, gid:cel.gid,
-         rol:cel.rol, rep:cel.rep, surcoIni:s, surcoFin:s, span:1};
+         rol:cel.rol, rep:cel.rep, surcoIni:s, surcoFin:s, span:1,
+         fajaTxt:cel.fajaTxt||'', surcoTxt:cel.surcoTxt||''};
     out.push(act);
   });
   return out;
@@ -959,8 +965,19 @@ function construirMapa(rows, hoja){
     plots.push(Object.assign({faja:f.faja},p));
   }));
 
+  // Algunos mapas traen FAJA y SURCO escritos dentro de la celda. La posición
+  // en la cuadrícula es la que manda; si el texto no coincide, se avisa para
+  // que se revise el mapa antes de sembrar (puede ser un error al armarlo).
+  const difPos=[];
+  plots.forEach(p=>{
+    const fs=parseInt(p.fajaTxt,10), ss=parseInt(p.surcoTxt,10);
+    const malF = !isNaN(fs) && p.faja!=null && fs!==p.faja;
+    const malS = !isNaN(ss) && (ss<p.surcoIni || ss>p.surcoFin);
+    if(malF||malS) difPos.push({plot:p.plot, faja:p.faja, surco:p.surcoIni, fajaTxt:p.fajaTxt, surcoTxt:p.surcoTxt});
+  });
+
   const m={estudio, instancia, loc, hoja, surcosPorPlot:spp, inicio:inicioTxt, layout:ordenTxt,
-           surcos:g.surcos, fajas:g.fajas, plots, orden:[]};
+           surcos:g.surcos, fajas:g.fajas, plots, orden:[], difPos};
   ordenarMapa(m);
   return m;
 }
@@ -1008,12 +1025,21 @@ function reindexarMapa(){
   });
   orden=mapa.orden||[];
 }
+function avisoPosicion(){
+  const d=(mapa&&mapa.difPos)||[]; if(!d.length) return '';
+  const fajas=[...new Set(d.map(x=>x.faja))].sort((a,b)=>a-b);
+  const ej=d.slice(0,3).map(x=>`${esc(x.plot)} dice faja ${esc(x.fajaTxt||'?')}, surco ${esc(x.surcoTxt||'?')} y está en faja ${x.faja}, surco ${x.surco}`).join('; ');
+  return `<div class="alerta" style="margin-top:8px"><b>⚠ Revisa el mapa antes de sembrar.</b> En ${d.length} plots `+
+    `(faja${fajas.length>1?'s':''} ${fajas.join(', ')}) la faja o el surco escrito dentro de la celda no coincide con su lugar en la cuadrícula. `+
+    `La app usa el lugar en la cuadrícula. Ej.: ${ej}.</div>`;
+}
 function estadoMapa(){
   if(!mapa) return;
   $('statusMapa').innerHTML=`<span class="hl-ok">${mapa.plots.length} plots</span> · ${mapa.fajas.length} fajas · ${mapa.surcos.length} surcos` +
     (mapa.surcosPorPlot?` · ${mapa.surcosPorPlot} surcos/plot`:'') +
     (mapa.estudio?`<br><span class="mono">${esc(mapa.estudio)}</span>`:'') +
-    (mapa.loc?` · ${esc(mapa.loc)}`:'') + (mapa.instancia?` · inst ${esc(mapa.instancia)}`:'');
+    (mapa.loc?` · ${esc(mapa.loc)}`:'') + (mapa.instancia?` · inst ${esc(mapa.instancia)}`:'') +
+    avisoPosicion();
   revisarListo();
 }
 
