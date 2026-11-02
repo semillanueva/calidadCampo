@@ -493,14 +493,17 @@
     <label for="envTec">Tablet o técnico</label>
     <input id="envTec" autocomplete="off" placeholder="Ej.: Tablet 2 – Alessandro">
     <label for="envUrl">URL del Apps Script</label>
-    <input id="envUrl" type="url" autocomplete="off" inputmode="url" placeholder="https://script.google.com/macros/s/…/exec">
+    <input id="envUrl" type="url" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" inputmode="url" placeholder="https://script.google.com/macros/s/…/exec">
     <label for="envClave">Clave</label>
-    <input id="envClave" type="password" autocomplete="off">
+    <input id="envClave" type="password" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
+    <label style="font-weight:400;display:flex;gap:6px;align-items:center;margin-top:6px">
+      <input type="checkbox" id="envVerClave" style="width:auto"> Mostrar clave</label>
     <div id="envEst"></div>
     <div class="acciones">
       <button class="btn-big" id="envGuardar" type="button">Guardar</button>
       <button class="btn-sec" id="envProbar" type="button">Probar conexión</button>
       <button class="btn-sec" id="envAhora" type="button">Enviar ahora</button>
+      <button class="btn-sec" id="envAbrir" type="button">Abrir URL</button>
       <button class="btn-sec" id="envCerrar" type="button">Cerrar</button>
     </div>
   </div>
@@ -511,7 +514,7 @@
 const $ = id => document.getElementById(id);
 // Cambiar en cada versión que se sube: sirve para confirmar en la tablet que
 // ya tomó la última (se ve abajo en la pestaña Archivos).
-const VERSION_APP = '21-oct-2026 · v8 (mapas con PLOT_CODE, aviso de faja/surco)';
+const VERSION_APP = '02-nov-2026 · v10 (Entry del mapa obligatorio)';
 const esc = s => String(s==null?'':s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const LOG = [];
 function log(...a){ LOG.push(a.map(x=>typeof x==='string'?x:JSON.stringify(x)).join(' ')); $('diag').textContent = LOG.slice(-250).join('\n'); }
@@ -522,6 +525,14 @@ function log(...a){ LOG.push(a.map(x=>typeof x==='string'?x:JSON.stringify(x)).j
 // Los LOT_UID de BMS distinguen mayúsculas (ej. 2QEDL8ECOxKt6): el código
 // se conserva tal cual. Antes se pasaba todo a mayúsculas.
 function normCode(s){ return String(s==null?'':s).trim().replace(/\s+/g,''); }
+// "29", "29.0" y "029" son el mismo Entry.
+function normEntry(s){ const t=normLoose(String(s??'').replace(/\.0+$/,'')); return /^\d+$/.test(t)?String(parseInt(t,10)):t; }
+// Devuelve el texto del problema si el Entry del libro y el del mapa no coinciden.
+function entryDistinto(pm,fila){
+  if(!pm||!fila||!pm.entry||!fila.entry) return '';
+  if(normEntry(pm.entry)===normEntry(fila.entry)) return '';
+  return `El Entry no coincide: el mapa dice Entry ${pm.entry} en el plot ${pm.plot} y el libro dice Entry ${fila.entry}.`;
+}
 function normLoose(s){ return normCode(s).toUpperCase().replace(/[^A-Z0-9]/g,''); }
 function normGid(s){ const a=normLoose(s); return /^\d+$/.test(a)?String(parseInt(a,10)):a; }
 // Llaves de búsqueda en orden de preferencia: exacta primero, y luego
@@ -831,8 +842,10 @@ function parseCeldaMapa(raw){
   let m; while((m=rx.exec(text))!==null) pares[etqCelda(m[1])]=m[2].trim();
   const val=k=>{ for(const a of ETQ_CELDA[k]) if(pares[a]!=null) return pares[a]; return ''; };
   const plot=val('plot');
-  if(plot) return {plot, plotNo:val('plotno'), entry:val('entry'),
-                   gid:val('gid'), rol:val('rol'), rep:val('rep'),
+  // Algunos mapas mezclan "Plot: 68" con "Entry 14" y "Rep 2" sin dos puntos.
+  const sinDosPuntos=k=>{ const m=text.match(new RegExp('(?:^|[\\s|;,])'+k+'(?:\\s*no\\.?)?[\\s#\\-]+(\\d+)\\b','i')); return m?m[1]:''; };
+  if(plot) return {plot, plotNo:val('plotno'), entry:val('entry')||sinDosPuntos('entry'),
+                   gid:val('gid'), rol:val('rol'), rep:val('rep')||sinDosPuntos('rep'),
                    fajaTxt:val('faja'), surcoTxt:val('surco')};
   // Formato Finca / Registro / Screening: "Plot-72 \n Entry 21 \n Rep 2"
   let p2=null,e2='',r2='';
@@ -1048,7 +1061,7 @@ function estadoMapa(){
    ============================================================ */
 function cruzar(silencioso){
   if(!libro||!mapa) return;
-  const sinLibro=[], sinObs=[], sinGid=[];
+  const sinLibro=[], sinObs=[], sinGid=[], entryMal=[];
   mapa.plots.forEach(p=>{
     let f=null;
     f = buscarEn(idxPlotLibro, p.plotNo) || buscarEn(idxPlotLibro, p.plot);
@@ -1056,14 +1069,18 @@ function cruzar(silencioso){
     p.libro=f;
     if(!f.obs) sinObs.push(p.plot);
     if(!f.gid) sinGid.push(p.plot);
+    if(entryDistinto(p,f)) entryMal.push(`${p.plot} (mapa ${p.entry} / libro ${f.entry})`);
   });
   const total=mapa.plots.length, ok=total-sinLibro.length;
-  const problemas = sinLibro.length||sinObs.length;
+  const problemas = sinLibro.length||sinObs.length||entryMal.length;
   let h=`<div class="alerta ${problemas?'':'ok'}"><b>${ok} de ${total}</b> plots del mapa encontrados en el libro de campo`;
   h += locSel && locSel!=='__todas__' ? ` (localidad: ${esc(locSel)}).` : '.';
   if(sinLibro.length) h+=`<br><span class="hl-bad">Sin fila en el libro (${sinLibro.length}):</span> ${esc(sinLibro.slice(0,15).join(', '))}${sinLibro.length>15?'…':''}`;
   if(sinObs.length)   h+=`<br><span class="hl-warn">Sin OBS_UNIT_ID (${sinObs.length}):</span> ${esc(sinObs.slice(0,15).join(', '))}${sinObs.length>15?'…':''}`;
   if(sinGid.length)   h+=`<br><span class="hl-warn">Sin GID (${sinGid.length}):</span> ${esc(sinGid.slice(0,15).join(', '))}${sinGid.length>15?'…':''}`;
+  if(entryMal.length) h+=`<br><span class="hl-bad">Entry distinto entre mapa y libro (${entryMal.length}):</span> ${esc(entryMal.slice(0,8).join(', '))}${entryMal.length>8?'…':''}`+
+    `<br>Revisa que la hoja del mapa sea de la misma localidad que el libro. Esos plots van a salir INCORRECTO al escanear.`;
+  else if(mapa.plots.some(p=>p.entry)) h+=`<br>Entry: coincide en todos los plots entre mapa y libro.`;
   h+='</div>';
   $('cruceResumen').innerHTML=h;
   if(!silencioso) log('Cruce:',ok,'/',total,'| sinLibro',sinLibro.length,'| sinGid',sinGid.length);
@@ -1168,6 +1185,7 @@ function leerEtiqueta(v){
     pm=buscarPlotMapa(fila);
     if(!pm) motivos.push(`La etiqueta es del plot ${fila.plotno||fila.plot||'(sin número)'}, que no aparece en el mapa cargado.`);
     else {
+      const ed=entryDistinto(pm,fila); if(ed) motivos.push(ed+' Revisa que el mapa y el libro sean de la misma localidad.');
       const esp=siguienteEsperado();
       if(esp && esp!==pm.key){
         const pe=idxPlotMapa.get(esp);
@@ -1186,7 +1204,7 @@ function leerEtiqueta(v){
   }
   pasoEti={obs:v, fila, pm, t:Date.now()};
   const vd=$('verdict'); vd.className='verdict paso';
-  vd.innerHTML=`ETIQUETA OK — AHORA EL SOBRE<small>plot ${esc(pm.plot)} &middot; faja ${esc(pm.faja)} &middot; surco ${esc(pm.surcoIni)}${pm.span>1?'–'+esc(pm.surcoFin):''}</small>`;
+  vd.innerHTML=`ETIQUETA OK — AHORA EL SOBRE<small>plot ${esc(pm.plot)}${pm.entry?` &middot; entry ${esc(pm.entry)}`:''} &middot; faja ${esc(pm.faja)} &middot; surco ${esc(pm.surcoIni)}${pm.span>1?'–'+esc(pm.surcoFin):''}</small>`;
   $('kvPlot').innerHTML=`<b>Etiqueta</b><span class="mono">${esc(v)}</span>`+
     `<b>Plot</b><span class="mono">${esc(pm.plot)}</span>`+
     `<b>Faja / Surco</b><span>${esc(pm.faja)} / ${esc(pm.surcoIni)}${pm.span>1?'–'+esc(pm.surcoFin):''}</span>`+
@@ -1282,9 +1300,10 @@ function evaluar(obsRaw, etiqueta){
     if(pm.gid && fila.gid && normGid(pm.gid)!==normGid(fila.gid)){
       nivel='bad'; motivos.push(`El mapa y el libro no coinciden en GID para ese plot: mapa ${pm.gid} / libro ${fila.gid}.`);
     }
-    if(pm.entry && fila.entry && normLoose(pm.entry)!==normLoose(fila.entry)){
-      nivel=peor(nivel,'warn'); motivos.push(`Entry distinto: mapa ${pm.entry} / libro ${fila.entry}.`);
-    }
+    // El Entry es lo que está escrito en el mapa de campo: si no coincide con el
+    // del libro, el sobre no va en ese lugar (o el mapa/libro cargado es otro).
+    const ed=entryDistinto(pm,fila);
+    if(ed){ nivel='bad'; motivos.push(ed); }
     if(sembrados.has(pm.key)){ nivel=peor(nivel,'warn'); motivos.push('Este plot ya se había escaneado.'); }
     if(modo==='secuencia'){
       const esp=siguienteEsperado();
@@ -1305,7 +1324,7 @@ function terminar(obs,fila,pm,nivel,motivos,gps,etiqueta){
   const v=$('verdict');
   v.className='verdict '+(nivel==='ok'?'true':nivel==='warn'?'warn':'false');
   const titulo = nivel==='ok'?'CORRECTO':nivel==='warn'?'REVISAR':'INCORRECTO';
-  const sitio = pm?`plot ${pm.plot} &middot; faja ${pm.faja} &middot; surco ${pm.surcoIni}${pm.span>1?'–'+pm.surcoFin:''}`:'';
+  const sitio = pm?`plot ${pm.plot}${pm.entry?` &middot; entry ${esc(pm.entry)}`:''} &middot; faja ${pm.faja} &middot; surco ${pm.surcoIni}${pm.span>1?'–'+pm.surcoFin:''}`:'';
   v.innerHTML = titulo + (sitio?`<small>${sitio}</small>`:'') +
                 (motivos.length?`<small>${motivos.map(esc).join('<br>')}</small>`:'');
 
@@ -2229,7 +2248,13 @@ async function envPost(registros){
     return d;
   }catch(e){
     if(e.name==='AbortError') throw new Error('sin respuesta en '+(ENV_TIMEOUT/1000)+' s');
-    if(e instanceof TypeError) throw new Error('sin conexión con Google');
+    if(e instanceof TypeError){
+      if(navigator.onLine===false) throw new Error('sin conexión a internet');
+      // Con internet, un TypeError casi siempre es que Google devolvió una página
+      // de error o de inicio de sesión en lugar de la respuesta del script.
+      throw new Error('Google no devolvió la respuesta del script. Casi siempre es la URL mal copiada '+
+        'o el script ya no está publicado para "Cualquier persona". Toca "Abrir URL": debe mostrar {"ok":true,…}');
+    }
     throw e;
   }finally{ if(t) clearTimeout(t); }
 }
@@ -2273,11 +2298,44 @@ function pintarEnvio(){
   e.className=envUltimo.error?'bad':(envUltimo.cuando&&!n?'ok':'');
 }
 
+// Al copiar desde Word, WhatsApp o un PDF se cuelan caracteres invisibles
+// (espacio duro, guion suave, espacios de ancho cero, saltos de línea) que no
+// se ven pero cambian la URL o la clave. Se quitan antes de guardar.
+const RX_INVISIBLES=/[\u00AD\u200B-\u200F\u2028\u2029\u202A-\u202E\u2060-\u2064\uFEFF]/g;
+function limpiarCampo(v){
+  return String(v||'').replace(RX_INVISIBLES,'').replace(/[\u00A0\u2000-\u200A\u202F\u205F\u3000]/g,' ')
+    .replace(/^[\s"'“”‘’«»]+|[\s"'“”‘’«»]+$/g,'');
+}
+function limpiarUrl(v){
+  let u=limpiarCampo(v).replace(/\s+/g,'');          // una URL nunca lleva espacios
+  u=u.replace(/^http:\/\//i,'https://');
+  u=u.replace(/\/macros\/u\/\d+\/s\//,'/macros/s/');  // "/u/0/" de sesiones con varias cuentas
+  return u;
+}
+// Devuelve el problema con la URL en palabras, o '' si se ve bien.
+function problemaUrl(u){
+  if(!u) return 'falta la URL';
+  if(/\/dev(\?|$)/.test(u)) return 'la URL termina en /dev; usa la que termina en /exec (Implementar → Gestionar implementaciones)';
+  if(!/^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]{20,}\/exec(\?.*)?$/.test(u))
+    return 'la URL no tiene el formato correcto: debe empezar con https://script.google.com/macros/s/ y terminar en /exec';
+  return '';
+}
+let envLimpiados=0;
 async function envLeerForm(){
-  envCfg.tecnico=$('envTec').value.trim();
-  envCfg.url=$('envUrl').value.trim();
-  envCfg.clave=$('envClave').value;
+  const crudos=[$('envUrl').value,$('envClave').value];
+  envCfg.tecnico=limpiarCampo($('envTec').value);
+  envCfg.url=limpiarUrl($('envUrl').value);
+  envCfg.clave=limpiarCampo($('envClave').value);
+  const inv=v=>(String(v).match(RX_INVISIBLES)||[]).length;
+  const esp=/[\s\u00A0\u2000-\u200A\u202F\u205F\u3000]/g;
+  envLimpiados = inv(crudos[0]) + (String(crudos[0]).match(esp)||[]).length      // en la URL sobra todo espacio
+               + inv(crudos[1]) + (String(crudos[1]).length - String(crudos[1]).replace(RX_INVISIBLES,'').trim().length - inv(crudos[1]));
+  // Se muestra lo que realmente quedó guardado.
+  $('envTec').value=envCfg.tecnico; $('envUrl').value=envCfg.url; $('envClave').value=envCfg.clave;
   await envPut('cfg',envCfg);
+}
+function notaLimpieza(){
+  return envLimpiados>0 ? ` Se quitaron ${envLimpiados} caracteres invisibles o espacios que venían al copiar.` : '';
 }
 $('chipEnvio').onclick=()=>{
   $('envTec').value=envCfg.tecnico; $('envUrl').value=envCfg.url; $('envClave').value=envCfg.clave;
@@ -2290,19 +2348,37 @@ $('envGuardar').onclick=async()=>{
     await envLeerForm();
     // Los escaneos aún no enviados toman el nombre nuevo.
     envCola.forEach(r=>{ r.Tecnico=envCfg.tecnico; }); await envGuardarCola();
-    envUltimo={cuando:Date.now(), texto:'Configuración guardada.', error:false};
+    const pu=problemaUrl(envCfg.url);
+    envUltimo = pu ? {cuando:Date.now(), texto:'Guardado, pero '+pu+'.'+notaLimpieza(), error:true}
+                   : {cuando:Date.now(), texto:'Configuración guardada.'+notaLimpieza(), error:false};
   }catch(e){ envUltimo={cuando:Date.now(), texto:'No se pudo guardar: '+e.message, error:true}; }
   envEspera=0; pintarEnvio(); envEnviar();
 };
 $('envProbar').onclick=async()=>{
   try{ await envLeerForm(); }catch(e){}
   if(!envConfigurado()){ envUltimo={cuando:Date.now(), texto:'Falta la URL o la clave.', error:true}; pintarEnvio(); return; }
+  const pu=problemaUrl(envCfg.url);
+  if(pu){ envUltimo={cuando:Date.now(), texto:'Falló la prueba: '+pu+'.'+notaLimpieza(), error:true}; pintarEnvio(); return; }
   envUltimo={cuando:Date.now(), texto:'Probando…', error:false}; pintarEnvio();
-  try{ await envPost([]); envUltimo={cuando:Date.now(), texto:'Conexión correcta: la URL y la clave funcionan.', error:false}; }
-  catch(e){ envUltimo={cuando:Date.now(), texto:'Falló la prueba: '+e.message+'.', error:true}; }
+  try{ await envPost([]); envUltimo={cuando:Date.now(), texto:'Conexión correcta: la URL y la clave funcionan.'+notaLimpieza(), error:false}; }
+  catch(e){
+    const msg = /clave incorrecta/i.test(e.message)
+      ? 'la clave no coincide con la del script. Toca "Mostrar clave" y revisa mayúsculas y minúsculas (Word suele poner la primera letra en mayúscula)'
+      : e.message;
+    envUltimo={cuando:Date.now(), texto:'Falló la prueba: '+msg+'.'+notaLimpieza(), error:true};
+  }
   pintarEnvio();
 };
 $('envAhora').onclick=()=>{ envEspera=0; envEnviar(); };
+$('envVerClave').onchange=e=>{ $('envClave').type=e.target.checked?'text':'password'; };
+// Abre la URL tal como quedó guardada: si el script está bien publicado se ve
+// {"ok":true,"servicio":"SiembraCampo",...}; si pide iniciar sesión o da error,
+// el problema es la URL o el permiso del script, no la app.
+$('envAbrir').onclick=()=>{
+  const u=limpiarUrl($('envUrl').value);
+  if(!u){ envUltimo={cuando:Date.now(), texto:'Escribe la URL primero.', error:true}; pintarEnvio(); return; }
+  window.open(u,'_blank','noopener');
+};
 window.addEventListener('online',()=>{ envEspera=0; envEnviar(); });
 window.addEventListener('offline',pintarEnvio);
 document.addEventListener('visibilitychange',()=>{ if(!document.hidden) envEnviar(); });
