@@ -514,7 +514,7 @@
 const $ = id => document.getElementById(id);
 // Cambiar en cada versión que se sube: sirve para confirmar en la tablet que
 // ya tomó la última (se ve abajo en la pestaña Archivos).
-const VERSION_APP = '02-nov-2026 · v10 (Entry del mapa obligatorio)';
+const VERSION_APP = '03-nov-2026 · v11 (mapas exportados directo de BMS)';
 const esc = s => String(s==null?'':s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const LOG = [];
 function log(...a){ LOG.push(a.map(x=>typeof x==='string'?x:JSON.stringify(x)).join(' ')); $('diag').textContent = LOG.slice(-250).join('\n'); }
@@ -848,14 +848,20 @@ function parseCeldaMapa(raw){
                    gid:val('gid'), rol:val('rol'), rep:val('rep')||sinDosPuntos('rep'),
                    fajaTxt:val('faja'), surcoTxt:val('surco')};
   // Formato Finca / Registro / Screening: "Plot-72 \n Entry 21 \n Rep 2"
-  let p2=null,e2='',r2='';
+  // y exportación directa de BMS: "02_REGISTRO_2026_C-66 \n Entry 20 \n Rep 3"
+  // (nombre del estudio, guion y número de plot).
+  let p2=null,e2='',r2='',pEstudio=null;
   text.split(/\r?\n/).map(l=>l.trim()).filter(Boolean).forEach(l=>{
     let mm;
     if((mm=l.match(/^Plot[-:\s]*(\S+)/i))) p2=mm[1];
     else if((mm=l.match(/^Entry[-:\s]*(\S+)/i))) e2=mm[1];
     else if((mm=l.match(/^Rep[-:\s]*(\S+)/i))) r2=mm[1];
+    else if(!pEstudio && (mm=l.match(/^\S.*?-\s*(\d+)$/))) pEstudio=mm[1];
   });
   if(p2) return {plot:p2, plotNo:p2, entry:e2, gid:'', rol:'', rep:r2};
+  // El número pegado al estudio solo cuenta si la celda trae Entry: así
+  // rótulos como "Column 1" o "Range 6" no se toman por plots.
+  if(pEstudio && e2) return {plot:pEstudio, plotNo:pEstudio, entry:e2, gid:'', rol:'', rep:r2};
   return null;
 }
 const RX_COLHDR=/^\s*(\d+)\s*(UP|DOWN|ARRIBA|ABAJO)?\s*$/i;
@@ -963,15 +969,20 @@ function valorBajoHeader(rows, nombre){
 }
 function numPlot(p){ const m=String(p).match(/(\d+)/); return m?parseInt(m[1],10):Number.MAX_SAFE_INTEGER; }
 
-function construirMapa(rows, hoja){
+function construirMapa(rows, hoja, resumen){
   const g=parseGridMapa(rows); if(!g) return null;
-  const estudio=valorBajoHeader(rows,'study')||'';
-  const instancia=valorBajoHeader(rows,'environment')||'';
-  const loc=etiquetaSuelta(rows,'field location')||'';
-  const spp=etiquetaSuelta(rows,'surcos per plot')||etiquetaSuelta(rows,'rows per plot')||'';
+  // Los datos generales pueden venir en la misma hoja del mapa o, en la
+  // exportación directa de BMS, solo en la hoja SUMMARY.
+  const R=resumen||[];
+  const bajo=k=>valorBajoHeader(rows,k)||valorBajoHeader(R,k)||'';
+  const suelta=k=>etiquetaSuelta(rows,k)||etiquetaSuelta(R,k)||'';
+  const estudio=bajo('study');
+  const instancia=bajo('environment');
+  const loc=suelta('field location');
+  const spp=suelta('surcos per plot')||suelta('rows per plot');
 
-  const inicioTxt=etiquetaSuelta(rows,'starting coordinates')||'';
-  const ordenTxt=etiquetaSuelta(rows,'plot layout order')||'';
+  const inicioTxt=suelta('starting coordinates');
+  const ordenTxt=suelta('plot layout order');
 
   const plots=[];
   g.fajas.forEach(f=>f.plots.forEach(p=>{
@@ -1650,7 +1661,8 @@ $('fileMapa').onchange=e=>{
   });
 };
 function cargarHojaMapa(nombre){
-  const m=construirMapa(hojaAFilas(_wbMapa,nombre),nombre);
+  const hojaRes=(_wbMapa.SheetNames||[]).find(n=>n!==nombre && /summary|resumen/i.test(n));
+  const m=construirMapa(hojaAFilas(_wbMapa,nombre),nombre, hojaRes?hojaAFilas(_wbMapa,hojaRes):null);
   if(!m){ $('statusMapa').innerHTML='<span class="hl-bad">No se reconoció la cuadrícula en esta hoja.</span>';
           log('Mapa: sin cuadrícula en',nombre); return; }
   mapa=m; reindexarMapa(); estadoMapa(); pasoEti=null; pintarPaso();
