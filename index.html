@@ -515,7 +515,7 @@
 const $ = id => document.getElementById(id);
 // Cambiar en cada versión que se sube: sirve para confirmar en la tablet que
 // ya tomó la última (se ve abajo en la pestaña Archivos).
-const VERSION_APP = '09-nov-2026 · v12 (CSV: copia segura en Descargas)';
+const VERSION_APP = '09-nov-2026 · v13 (KML se guarda en Descargas)';
 const esc = s => String(s==null?'':s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const LOG = [];
 function log(...a){ LOG.push(a.map(x=>typeof x==='string'?x:JSON.stringify(x)).join(' ')); $('diag').textContent = LOG.slice(-250).join('\n'); }
@@ -1487,8 +1487,9 @@ async function guardarArchivo(n, b, tipo){
       log('Guardado:', n, tamano(b)); avisoDescarga('✓ Guardado '+que); return;
     }catch(e){ if(e&&e.name==='AbortError') return; log('Guardar como no disponible:', e&&e.message); }
   }
-  // Copia segura en la tablet.
-  descargaDirecta(n,b);
+  // Copia segura en la tablet. Con un tipo genérico: si va marcado como KML,
+  // Android no lo guarda y solo muestra "Abrir con" (para Google Earth/Maps).
+  descargaDirecta(n, ES_MOVIL ? new Blob([b],{type:'application/octet-stream'}) : b);
   log('Copia en Descargas:', n, tamano(b));
   let compartido=false;
   try{
@@ -1533,7 +1534,7 @@ $('btnExport').onclick=()=>{
 // KML: abre en Google Earth, Google My Maps o QGIS. Un punto por escaneo.
 $('btnExportKml').onclick=()=>{
   const pts = historial.filter(h=>h.lat!=null);
-  if(!pts.length){ alert('Ningún escaneo tiene ubicación GPS todavía.'); return; }
+  if(!pts.length){ avisoDescarga('Ningún escaneo tiene ubicación GPS todavía: no hay puntos para el KML.', true); return; }
   const x = t => esc(t).replace(/'/g,'&apos;');
   const color = n => n==='ok'?'ff2f8f13':n==='warn'?'ff0067ff':'ff2000b0';   // aabbggrr
   const marcas = pts.slice().reverse().map(h=>`
@@ -1552,7 +1553,8 @@ $('btnExportKml').onclick=()=>{
 </Document></kml>`;
   guardarArchivo(`siembra_${nombreBase()}_${new Date().toISOString().slice(0,10)}.kml`,
     new Blob([kml],{type:'application/vnd.google-earth.kml+xml'}),
-    {desc:'Puntos GPS (KML)', mime:'application/vnd.google-earth.kml+xml', ext:'.kml', avisoDescargas:true});
+    {desc:'Puntos GPS (KML)', mime:'application/vnd.google-earth.kml+xml', ext:'.kml',
+     resumen:`${pts.length} punto${pts.length===1?'':'s'} GPS`});
 };
 $('btnExportPend').onclick=()=>{
   if(!mapa) return;
