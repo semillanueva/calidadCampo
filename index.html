@@ -451,6 +451,7 @@
     <button class="btn-sec" id="btnExportKml">⬇ Puntos GPS (KML)</button>
     <button class="btn-peligro" id="btnClear">Limpiar historial</button>
   </div>
+  <p class="hint" id="estDescarga" role="status" style="margin-top:8px"></p>
   <div class="table-wrap">
     <table id="histTable">
       <thead><tr>
@@ -514,7 +515,7 @@
 const $ = id => document.getElementById(id);
 // Cambiar en cada versión que se sube: sirve para confirmar en la tablet que
 // ya tomó la última (se ve abajo en la pestaña Archivos).
-const VERSION_APP = '03-nov-2026 · v11 (mapas exportados directo de BMS)';
+const VERSION_APP = '09-nov-2026 · v12 (CSV: copia segura en Descargas)';
 const esc = s => String(s==null?'':s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const LOG = [];
 function log(...a){ LOG.push(a.map(x=>typeof x==='string'?x:JSON.stringify(x)).join(' ')); $('diag').textContent = LOG.slice(-250).join('\n'); }
@@ -1460,41 +1461,50 @@ function pintarHistorial(){
 }
 function csv(f){ return f.map(r=>r.map(v=>{ const s=String(v==null?'':v);
   return /[",\n;]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s; }).join(';')).join('\r\n'); }
-// Al descargar un CSV o el KML se pregunta dónde guardarlo (los archivos van a Dropbox):
-// - Computadora (Chrome/Edge): ventana "Guardar como" para elegir la carpeta,
-//   por ejemplo la de Dropbox.
-// - Tablet o celular: se abre "Compartir" y se elige Dropbox ("Guardar en
-//   Dropbox"). Chrome en Android no tiene "Guardar como".
-// - Chrome en Android solo deja compartir algunos tipos (imágenes, PDF, texto,
-//   CSV…); el KML no está entre ellos. En ese caso, y en navegadores sin
-//   ninguna de las dos opciones, se descarga a Descargas y se avisa cómo subirlo.
-// Si la persona cancela, no se guarda nada (puede volver a tocar el botón).
+// Guardar CSV o KML.
+// - Computadora (Chrome/Edge): ventana "Guardar como" para elegir la carpeta
+//   de Dropbox.
+// - Tablet o celular: SIEMPRE se descarga primero una copia a Descargas y
+//   después se abre "Compartir" para mandarla a Dropbox. Antes solo se
+//   compartía, y en algunas tablets Dropbox recibía el archivo vacío (0 KB):
+//   la app que recibe lo lee tarde y el archivo temporal ya no está. Con la
+//   copia en Descargas el dato nunca se pierde.
+// - Debajo de los botones queda escrito qué se generó (escaneos y tamaño),
+//   para comparar con lo que llegó a Dropbox.
+function tamano(b){ return b.size<1024 ? b.size+' bytes' : (b.size/1024).toFixed(1)+' KB'; }
+function avisoDescarga(txt, malo){
+  const e=$('estDescarga'); if(!e) return;
+  e.textContent=txt; e.style.color = malo ? 'var(--bad)' : 'var(--ok)';
+}
+const ES_MOVIL=/Android|iPhone|iPad|Mobile/i.test(navigator.userAgent);
 async function guardarArchivo(n, b, tipo){
-  if(window.showSaveFilePicker){
+  const que = `${n}: ${tipo.resumen||''}${tipo.resumen?', ':''}${tamano(b)}.`;
+  if(!ES_MOVIL && window.showSaveFilePicker){
     try{
       const h=await window.showSaveFilePicker({suggestedName:n,
         types:[{description:tipo.desc, accept:{[tipo.mime]:[tipo.ext]}}]});
       const w=await h.createWritable(); await w.write(b); await w.close();
-      log('Guardado:', n); return;
+      log('Guardado:', n, tamano(b)); avisoDescarga('✓ Guardado '+que); return;
     }catch(e){ if(e&&e.name==='AbortError') return; log('Guardar como no disponible:', e&&e.message); }
   }
-  try{
-    const f=new File([b], n, {type:tipo.mime});
-    if(navigator.canShare && navigator.canShare({files:[f]})){
-      await navigator.share({files:[f], title:n});
-      log('Compartido:', n); return;
-    }
-  }catch(e){ if(e&&e.name==='AbortError') return; log('Compartir falló:', e&&e.message); }
+  // Copia segura en la tablet.
   descargaDirecta(n,b);
-  if(tipo.avisoDescargas && /Android|iPhone|iPad|Mobile/i.test(navigator.userAgent)){
-    setTimeout(()=>alert(`El archivo ${n} quedó en la carpeta Descargas.\n\n`+
-      'Para guardarlo en Dropbox: abre la app de Dropbox → toca + → Subir archivo → '+
-      'busca la carpeta Descargas → elige el archivo → elige la carpeta del ensayo.'), 400);
-  }
+  log('Copia en Descargas:', n, tamano(b));
+  let compartido=false;
+  try{
+    const f=new File([b], n, {type:tipo.mime, lastModified:Date.now()});
+    if(navigator.canShare && navigator.canShare({files:[f]})){
+      await new Promise(r=>setTimeout(r,600));   // deja terminar la descarga antes de abrir Compartir
+      await navigator.share({files:[f]});
+      compartido=true; log('Compartido:', n);
+    }
+  }catch(e){ if(!(e&&e.name==='AbortError')) log('Compartir falló:', e&&e.message); }
+  avisoDescarga((compartido?'✓ Enviado a Compartir y guardada una copia en Descargas — ':'✓ Guardado en Descargas — ')+que+
+    (ES_MOVIL?' Si en Dropbox llega vacío, súbelo desde Descargas (Dropbox → + → Subir archivo).':''));
 }
-function bajar(n,t){
-  return guardarArchivo(n, new Blob(['\ufeff'+t],{type:'text/csv;charset=utf-8;'}),
-    {desc:'Archivo CSV', mime:'text/csv', ext:'.csv', avisoDescargas:true});
+function bajar(n,t,resumen){
+  return guardarArchivo(n, new Blob(['\ufeff'+t],{type:'text/csv;charset=utf-8'}),
+    {desc:'Archivo CSV', mime:'text/csv', ext:'.csv', resumen});
 }
 function descargaDirecta(n,b){
   const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download=n; a.click();
@@ -1504,6 +1514,11 @@ function descargaDirecta(n,b){
 function nombreBase(){ return [(mapa&&mapa.estudio)||'vivero',(mapa&&mapa.loc)||''].filter(Boolean).join('_').replace(/\W+/g,'_'); }
 const fx = x => x==null ? '' : String(x);
 $('btnExport').onclick=()=>{
+  if(!historial.length){
+    avisoDescarga('No hay escaneos en el historial de esta tablet. Si ya se había limpiado, los datos están en la hoja de Google o en un CSV anterior.', true);
+    return;
+  }
+  const n=historial.length;
   bajar(`siembra_${nombreBase()}_${new Date().toISOString().slice(0,10)}.csv`, csv(
     [['Fecha','Hora','OBS_UNIT_ID','Etiqueta_plot','Plot','Faja','Surco','GID','Designation','Entry','Resultado',
       'Latitud','Longitud','Precision_m','Edad_GPS_s','Finca','Distancia_finca_m','Fuera_de_finca','Ver_en_mapa','Detalle']]
@@ -1512,7 +1527,8 @@ $('btnExport').onclick=()=>{
       h.lat!=null?h.lat.toFixed(6):'', h.lon!=null?h.lon.toFixed(6):'',
       h.acc!=null?Math.round(h.acc):'', fx(h.gpsEdad),
       h.finca||'', fx(h.distFinca), h.fueraFinca==null?'':(h.fueraFinca?'SI':'NO'),
-      h.lat!=null?`https://maps.google.com/?q=${h.lat.toFixed(6)},${h.lon.toFixed(6)}`:'', h.detalle]))));
+      h.lat!=null?`https://maps.google.com/?q=${h.lat.toFixed(6)},${h.lon.toFixed(6)}`:'', h.detalle]))),
+    `${n} escaneo${n===1?'':'s'}`);
 };
 // KML: abre en Google Earth, Google My Maps o QGIS. Un punto por escaneo.
 $('btnExportKml').onclick=()=>{
@@ -1541,10 +1557,12 @@ $('btnExportKml').onclick=()=>{
 $('btnExportPend').onclick=()=>{
   if(!mapa) return;
   const p=mapa.plots.filter(x=>!sembrados.has(x.key));
+  if(!p.length){ avisoDescarga('No hay plots pendientes: todo el mapa está sembrado.', false); return; }
   bajar(`pendientes_${((mapa.loc||mapa.estudio||'vivero')).replace(/\W+/g,'_')}.csv`, csv(
     [['Plot','Faja','Surco_ini','Surco_fin','Entry','Rep','GID','OBS_UNIT_ID']]
     .concat(p.map(x=>[x.plot,x.faja,x.surcoIni,x.surcoFin,x.entry,x.rep,
-      (x.libro&&x.libro.gid)||x.gid,(x.libro&&x.libro.obs)||'']))));
+      (x.libro&&x.libro.gid)||x.gid,(x.libro&&x.libro.obs)||'']))),
+    `${p.length} plot${p.length===1?'':'s'} pendiente${p.length===1?'':'s'}`);
 };
 $('btnClear').onclick=()=>{
   if(!confirm('¿Borrar el historial y el avance de siembra?')) return;
