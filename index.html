@@ -538,7 +538,7 @@
 const $ = id => document.getElementById(id);
 // Cambiar en cada versión que se sube: sirve para confirmar en la tablet que
 // ya tomó la última (se ve abajo en la pestaña Archivos).
-const VERSION_APP = '10-nov-2026 · v14 (CSV y KML: mismo cuadro para guardar)';
+const VERSION_APP = '10-nov-2026 · v15 (KML a Dropbox por Compartir)';
 const esc = s => String(s==null?'':s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const LOG = [];
 function log(...a){ LOG.push(a.map(x=>typeof x==='string'?x:JSON.stringify(x)).join(' ')); $('diag').textContent = LOG.slice(-250).join('\n'); }
@@ -1521,14 +1521,25 @@ async function guardarArchivo(n, b, tipo){
 // Compartir, y con el KML Android mostraba «Abrir con» en medio).
 let _gd=null;
 function abrirGuardar(n,b,tipo,que){
-  const f=new File([b], n, {type:tipo.mime, lastModified:Date.now()});
-  let puede=false; try{ puede=!!(navigator.canShare && navigator.canShare({files:[f]})); }catch(e){}
-  _gd={n,b,tipo,que,f};
+  const sePuede=x=>{ try{ return !!(navigator.canShare && navigator.canShare({files:[x]})); }catch(e){ return false; } };
+  let f=new File([b], n, {type:tipo.mime, lastModified:Date.now()});
+  let puede=sePuede(f), comoTxt=false;
+  // Chrome en Android solo deja compartir algunos tipos (imágenes, PDF, texto,
+  // CSV…) y el KML no está entre ellos. Para que también llegue a Dropbox por
+  // Compartir se manda el mismo contenido como texto: "…kml.txt". En la
+  // computadora se le quita ".txt" al nombre y abre en Google Earth.
+  if(!puede && tipo.ext!=='.csv'){
+    const t=new File([b], n+'.txt', {type:'text/plain', lastModified:Date.now()});
+    if(sePuede(t)){ f=t; puede=true; comoTxt=true; }
+  }
+  _gd={n,b,tipo,que,f,comoTxt};
   $('gdArchivo').textContent=que;
   $('gdCompartir').hidden=!puede;
-  $('gdNotaCompartir').textContent = puede
-    ? 'Se abre Compartir: elige Dropbox y la carpeta del ensayo.'
-    : 'Este teléfono no deja enviar este tipo de archivo por Compartir. Guárdalo en el teléfono y súbelo desde la app de Dropbox: + → Subir archivo → Descargas.';
+  $('gdNotaCompartir').textContent = !puede
+    ? 'Este teléfono no deja enviar este tipo de archivo por Compartir. Guárdalo en el teléfono y súbelo desde la app de Dropbox: + → Subir archivo → Descargas.'
+    : comoTxt
+      ? `Se abre Compartir: elige Dropbox y la carpeta del ensayo. Llega con el nombre ${f.name}; en la computadora se le quita «.txt» para abrirlo en Google Earth.`
+      : 'Se abre Compartir: elige Dropbox y la carpeta del ensayo.';
   $('gdNotaCompartir').className = puede ? 'nota' : 'nota aviso';
   const esKml = tipo.ext==='.kml';
   $('gdNotaGuardar').textContent = esKml
@@ -1543,8 +1554,9 @@ $('gdCompartir').onclick=async()=>{
   if(!_gd) return; const g=_gd;
   try{
     await navigator.share({files:[g.f]});
-    log('Compartido:', g.n, tamano(g.b));
-    avisoDescarga('✓ Enviado a Compartir — '+g.que+' En Dropbox el archivo debe pesar lo mismo; si llega vacío, repite con «Guardar en este teléfono».');
+    log('Compartido:', g.f.name, tamano(g.b));
+    avisoDescarga('✓ Enviado a Compartir — '+g.que+(g.comoTxt?` En Dropbox aparece como ${g.f.name}.`:'')+
+      ' Debe pesar lo mismo; si llega vacío, repite con «Guardar en este teléfono».');
     cerrarGuardar();
   }catch(e){
     // El aviso también va dentro del cuadro, que sigue abierto.
