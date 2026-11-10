@@ -315,6 +315,17 @@
 
   /* ===== Envío a Google Sheets ===== */
   button.chip { border:0; font:inherit; font-size:.72rem; cursor:pointer; }
+  /* ===== Cuadro "¿Dónde guardar?" (CSV y KML en el teléfono) ===== */
+  #gdDlg { border:0; border-radius:14px; padding:0; width:min(440px,94vw); color:#1a1a1a; }
+  #gdDlg::backdrop { background:rgba(0,0,0,.45); }
+  #gdDlg .in { padding:18px; display:grid; gap:12px; }
+  #gdDlg h3 { margin:0; font-size:1.15rem; color:var(--accent); }
+  #gdDlg .archivo { font-size:.9rem; color:var(--gray); word-break:break-word; margin:0; }
+  #gdDlg button { width:100%; padding:14px 12px; font-size:1.05rem; }
+  #gdDlg [hidden] { display:none; }
+  #gdDlg .nota { font-size:.88rem; color:var(--gray); margin:-4px 0 0; line-height:1.4; }
+  #gdDlg .nota.aviso { background:var(--amberbg); color:#1a1a1a; border-radius:8px; padding:8px 10px; margin:0; }
+
   #envDlg { border:0; border-radius:12px; padding:0; width:min(440px,94vw); color:#1a1a1a; }
   #envDlg::backdrop { background:rgba(0,0,0,.45); }
   #envDlg .in { padding:18px; }
@@ -488,6 +499,18 @@
   </div>
 </div>
 
+<dialog id="gdDlg">
+  <div class="in">
+    <h3>¿Dónde guardar el archivo?</h3>
+    <p class="archivo" id="gdArchivo"></p>
+    <button class="btn-big" id="gdCompartir" type="button">📤 Enviar a Dropbox</button>
+    <p class="nota" id="gdNotaCompartir">Se abre Compartir: elige Dropbox y la carpeta del ensayo.</p>
+    <button class="btn-sec" id="gdGuardar" type="button">📱 Guardar en este teléfono</button>
+    <p class="nota" id="gdNotaGuardar">Queda en la carpeta Descargas.</p>
+    <button class="btn-sec" id="gdCerrar" type="button">Cancelar</button>
+  </div>
+</dialog>
+
 <dialog id="envDlg">
   <div class="in">
     <h3>Envío a Google Sheets</h3>
@@ -515,7 +538,7 @@
 const $ = id => document.getElementById(id);
 // Cambiar en cada versión que se sube: sirve para confirmar en la tablet que
 // ya tomó la última (se ve abajo en la pestaña Archivos).
-const VERSION_APP = '09-nov-2026 · v13 (KML se guarda en Descargas)';
+const VERSION_APP = '10-nov-2026 · v14 (CSV y KML: mismo cuadro para guardar)';
 const esc = s => String(s==null?'':s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const LOG = [];
 function log(...a){ LOG.push(a.map(x=>typeof x==='string'?x:JSON.stringify(x)).join(' ')); $('diag').textContent = LOG.slice(-250).join('\n'); }
@@ -1479,30 +1502,66 @@ function avisoDescarga(txt, malo){
 const ES_MOVIL=/Android|iPhone|iPad|Mobile/i.test(navigator.userAgent);
 async function guardarArchivo(n, b, tipo){
   const que = `${n}: ${tipo.resumen||''}${tipo.resumen?', ':''}${tamano(b)}.`;
-  if(!ES_MOVIL && window.showSaveFilePicker){
-    try{
-      const h=await window.showSaveFilePicker({suggestedName:n,
-        types:[{description:tipo.desc, accept:{[tipo.mime]:[tipo.ext]}}]});
-      const w=await h.createWritable(); await w.write(b); await w.close();
-      log('Guardado:', n, tamano(b)); avisoDescarga('✓ Guardado '+que); return;
-    }catch(e){ if(e&&e.name==='AbortError') return; log('Guardar como no disponible:', e&&e.message); }
-  }
-  // Copia segura en la tablet. Con un tipo genérico: si va marcado como KML,
-  // Android no lo guarda y solo muestra "Abrir con" (para Google Earth/Maps).
-  descargaDirecta(n, ES_MOVIL ? new Blob([b],{type:'application/octet-stream'}) : b);
-  log('Copia en Descargas:', n, tamano(b));
-  let compartido=false;
-  try{
-    const f=new File([b], n, {type:tipo.mime, lastModified:Date.now()});
-    if(navigator.canShare && navigator.canShare({files:[f]})){
-      await new Promise(r=>setTimeout(r,600));   // deja terminar la descarga antes de abrir Compartir
-      await navigator.share({files:[f]});
-      compartido=true; log('Compartido:', n);
+  if(!ES_MOVIL){
+    if(window.showSaveFilePicker){
+      try{
+        const h=await window.showSaveFilePicker({suggestedName:n,
+          types:[{description:tipo.desc, accept:{[tipo.mime]:[tipo.ext]}}]});
+        const w=await h.createWritable(); await w.write(b); await w.close();
+        log('Guardado:', n, tamano(b)); avisoDescarga('✓ Guardado '+que); return;
+      }catch(e){ if(e&&e.name==='AbortError') return; log('Guardar como no disponible:', e&&e.message); }
     }
-  }catch(e){ if(!(e&&e.name==='AbortError')) log('Compartir falló:', e&&e.message); }
-  avisoDescarga((compartido?'✓ Enviado a Compartir y guardada una copia en Descargas — ':'✓ Guardado en Descargas — ')+que+
-    (ES_MOVIL?' Si en Dropbox llega vacío, súbelo desde Descargas (Dropbox → + → Subir archivo).':''));
+    descargaDirecta(n,b); avisoDescarga('✓ Guardado en Descargas — '+que); return;
+  }
+  abrirGuardar(n,b,tipo,que);
 }
+
+// En el teléfono, CSV y KML pasan por el mismo cuadro con dos opciones. Cada
+// botón hace UNA sola cosa (antes un toque descargaba y además abría
+// Compartir, y con el KML Android mostraba «Abrir con» en medio).
+let _gd=null;
+function abrirGuardar(n,b,tipo,que){
+  const f=new File([b], n, {type:tipo.mime, lastModified:Date.now()});
+  let puede=false; try{ puede=!!(navigator.canShare && navigator.canShare({files:[f]})); }catch(e){}
+  _gd={n,b,tipo,que,f};
+  $('gdArchivo').textContent=que;
+  $('gdCompartir').hidden=!puede;
+  $('gdNotaCompartir').textContent = puede
+    ? 'Se abre Compartir: elige Dropbox y la carpeta del ensayo.'
+    : 'Este teléfono no deja enviar este tipo de archivo por Compartir. Guárdalo en el teléfono y súbelo desde la app de Dropbox: + → Subir archivo → Descargas.';
+  $('gdNotaCompartir').className = puede ? 'nota' : 'nota aviso';
+  const esKml = tipo.ext==='.kml';
+  $('gdNotaGuardar').textContent = esKml
+    ? 'Queda en la carpeta Descargas. Si el teléfono muestra «Abrir con», ciérralo con el botón Atrás: no hace falta elegir nada.'
+    : 'Queda en la carpeta Descargas.';
+  $('gdNotaGuardar').className = esKml ? 'nota aviso' : 'nota';
+  const d=$('gdDlg'); if(d.showModal) d.showModal(); else d.setAttribute('open','');
+}
+function cerrarGuardar(){ const d=$('gdDlg'); if(d.close) d.close(); else d.removeAttribute('open'); }
+$('gdCerrar').onclick=cerrarGuardar;
+$('gdCompartir').onclick=async()=>{
+  if(!_gd) return; const g=_gd;
+  try{
+    await navigator.share({files:[g.f]});
+    log('Compartido:', g.n, tamano(g.b));
+    avisoDescarga('✓ Enviado a Compartir — '+g.que+' En Dropbox el archivo debe pesar lo mismo; si llega vacío, repite con «Guardar en este teléfono».');
+    cerrarGuardar();
+  }catch(e){
+    // El aviso también va dentro del cuadro, que sigue abierto.
+    const dentro=t=>{ $('gdNotaCompartir').textContent=t; $('gdNotaCompartir').className='nota aviso'; avisoDescarga(t,true); };
+    if(e&&e.name==='AbortError'){ dentro('No se envió: se cerró Compartir sin elegir una app. Puedes intentar otra vez.'); return; }
+    log('Compartir falló:', e&&e.message);
+    dentro('No se pudo abrir Compartir. Usa «Guardar en este teléfono».');
+  }
+};
+$('gdGuardar').onclick=()=>{
+  if(!_gd) return; const g=_gd;
+  // Tipo genérico: marcado como KML, Android intenta abrirlo en vez de guardarlo.
+  descargaDirecta(g.n, new Blob([g.b],{type:'application/octet-stream'}));
+  log('Guardado en Descargas:', g.n, tamano(g.b));
+  avisoDescarga('✓ Guardado en Descargas — '+g.que+' Para pasarlo a Dropbox: app de Dropbox → + → Subir archivo → Descargas.');
+  cerrarGuardar();
+};
 function bajar(n,t,resumen){
   return guardarArchivo(n, new Blob(['\ufeff'+t],{type:'text/csv;charset=utf-8'}),
     {desc:'Archivo CSV', mime:'text/csv', ext:'.csv', resumen});
