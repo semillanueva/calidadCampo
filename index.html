@@ -505,8 +505,11 @@
     <p class="archivo" id="gdArchivo"></p>
     <button class="btn-big" id="gdCompartir" type="button">📤 Enviar a Dropbox</button>
     <p class="nota" id="gdNotaCompartir">Se abre Compartir: elige Dropbox y la carpeta del ensayo.</p>
+    <button class="btn-big" id="gdCarpeta" type="button" hidden>📁 Elegir carpeta (Dropbox)</button>
+    <p class="nota" id="gdNotaCarpeta" hidden>Se abre «Guardar como»: toca ☰ o «Guardar en…», elige Dropbox y la carpeta del ensayo.</p>
     <button class="btn-sec" id="gdGuardar" type="button">📱 Guardar en este teléfono</button>
     <p class="nota" id="gdNotaGuardar">Queda en la carpeta Descargas.</p>
+    <p class="nota" id="gdDiag" style="font-size:.75rem;opacity:.8"></p>
     <button class="btn-sec" id="gdCerrar" type="button">Cancelar</button>
   </div>
 </dialog>
@@ -538,7 +541,7 @@
 const $ = id => document.getElementById(id);
 // Cambiar en cada versión que se sube: sirve para confirmar en la tablet que
 // ya tomó la última (se ve abajo en la pestaña Archivos).
-const VERSION_APP = '10-nov-2026 · v16 (KML a Dropbox como en la v12)';
+const VERSION_APP = '10-nov-2026 · v17 (Guardar como → Dropbox, con verificación)';
 const esc = s => String(s==null?'':s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const LOG = [];
 function log(...a){ LOG.push(a.map(x=>typeof x==='string'?x:JSON.stringify(x)).join(' ')); $('diag').textContent = LOG.slice(-250).join('\n'); }
@@ -1524,21 +1527,27 @@ function abrirGuardar(n,b,tipo,que){
   const sePuede=x=>{ try{ return !!(navigator.canShare && navigator.canShare({files:[x]})); }catch(e){ return false; } };
   const f=new File([b], n, {type:tipo.mime, lastModified:Date.now()});
   const puede=sePuede(f);
-  // Chrome en Android no deja mandar KML por Compartir. Para el KML se usa
-  // entonces el camino de la v12, que sí llegaba a Dropbox: se descarga con su
-  // tipo real de archivo de mapas y Android muestra «Abrir con», donde se
-  // elige Dropbox. (En la v13 se descargaba con tipo genérico y Dropbox dejó
-  // de aparecer.)
-  const porAbrirCon = !puede && tipo.ext==='.kml';
+  // «Guardar como» del sistema: en los teléfonos que lo tienen, Dropbox
+  // aparece como una carpeta más. Es el camino por el que el KML llegaba a
+  // Dropbox hasta la v11 (en la v12 se apagó en teléfonos por error).
+  const carpeta=!!window.showSaveFilePicker;
+  // Último recurso para el KML: descargarlo con su tipo real de archivo de
+  // mapas, para que Android ofrezca «Abrir con» → Dropbox.
+  const porAbrirCon = !puede && !carpeta && tipo.ext==='.kml';
   _gd={n,b,tipo,que,f,porAbrirCon};
   $('gdArchivo').textContent=que;
+  $('gdCarpeta').hidden=!carpeta; $('gdNotaCarpeta').hidden=!carpeta;
   $('gdCompartir').hidden = !(puede||porAbrirCon);
+  $('gdNotaCompartir').hidden = !(puede||porAbrirCon) && carpeta;
   $('gdNotaCompartir').textContent = puede
     ? 'Se abre Compartir: elige Dropbox y la carpeta del ensayo.'
     : porAbrirCon
       ? 'El teléfono muestra «Abrir con»: elige Dropbox y la carpeta del ensayo.'
-      : 'Este teléfono no deja enviar este tipo de archivo por Compartir. Guárdalo en el teléfono y súbelo desde la app de Dropbox: + → Subir archivo → Descargas.';
+      : 'Este teléfono no deja enviar este archivo a Dropbox directamente. Guárdalo en el teléfono y súbelo desde la app de Dropbox: + → Subir archivo → Descargas.';
   $('gdNotaCompartir').className = (puede||porAbrirCon) ? 'nota' : 'nota aviso';
+  // Qué permite este teléfono (para diagnóstico si algo no funciona).
+  const csvPrueba=new File(['a'], 'p.csv', {type:'text/csv'});
+  $('gdDiag').textContent=`Este teléfono · Compartir ${tipo.ext.slice(1).toUpperCase()}: ${puede?'sí':'no'}${tipo.ext==='.csv'?'':` · Compartir CSV: ${sePuede(csvPrueba)?'sí':'no'}`} · Guardar como: ${carpeta?'sí':'no'} · ${VERSION_APP.split('·')[1].trim().split(' ')[0]}`;
   const esKml = tipo.ext==='.kml';
   $('gdNotaGuardar').textContent = esKml
     ? 'Queda en la carpeta Descargas, para subirlo después desde la app de Dropbox.'
@@ -1567,6 +1576,29 @@ $('gdCompartir').onclick=async()=>{
     if(e&&e.name==='AbortError'){ dentro('No se envió: se cerró Compartir sin elegir una app. Puedes intentar otra vez.'); return; }
     log('Compartir falló:', e&&e.message);
     dentro('No se pudo abrir Compartir. Usa «Guardar en este teléfono».');
+  }
+};
+$('gdCarpeta').onclick=async()=>{
+  if(!_gd) return; const g=_gd;
+  const dentro=(t,malo)=>{ $('gdNotaCarpeta').textContent=t; $('gdNotaCarpeta').className=malo?'nota aviso':'nota'; avisoDescarga(t,malo); };
+  try{
+    const h=await window.showSaveFilePicker({suggestedName:g.n,
+      types:[{description:g.tipo.desc, accept:{[g.tipo.mime]:[g.tipo.ext]}}]});
+    const w=await h.createWritable(); await w.write(g.b); await w.close();
+    // Se revisa lo que quedó guardado: algunas apps (como Dropbox) crean el
+    // archivo pero no reciben el contenido, y queda vacío.
+    let real=null; try{ real=(await h.getFile()).size; }catch(e){}
+    log('Guardado en carpeta:', g.n, tamano(g.b), '| quedó:', real);
+    if(real===0){
+      dentro('⚠ El archivo quedó VACÍO en esa carpeta. Usa «Guardar en este teléfono» y súbelo desde la app de Dropbox (+ → Subir archivo).', true);
+      return;
+    }
+    avisoDescarga('✓ Guardado '+g.que+(real!=null?` Comprobado: ${tamano({size:real})} en la carpeta.`:''));
+    cerrarGuardar();
+  }catch(e){
+    if(e&&e.name==='AbortError'){ dentro('No se guardó: se cerró «Guardar como» sin elegir carpeta.', true); return; }
+    log('Guardar como falló:', e&&e.message);
+    dentro('No se pudo guardar en esa carpeta ('+(e&&e.message||'error')+'). Usa «Guardar en este teléfono».', true);
   }
 };
 $('gdGuardar').onclick=()=>{
