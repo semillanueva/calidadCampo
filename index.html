@@ -538,7 +538,7 @@
 const $ = id => document.getElementById(id);
 // Cambiar en cada versión que se sube: sirve para confirmar en la tablet que
 // ya tomó la última (se ve abajo en la pestaña Archivos).
-const VERSION_APP = '10-nov-2026 · v15 (KML a Dropbox por Compartir)';
+const VERSION_APP = '10-nov-2026 · v16 (KML a Dropbox como en la v12)';
 const esc = s => String(s==null?'':s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const LOG = [];
 function log(...a){ LOG.push(a.map(x=>typeof x==='string'?x:JSON.stringify(x)).join(' ')); $('diag').textContent = LOG.slice(-250).join('\n'); }
@@ -1522,28 +1522,26 @@ async function guardarArchivo(n, b, tipo){
 let _gd=null;
 function abrirGuardar(n,b,tipo,que){
   const sePuede=x=>{ try{ return !!(navigator.canShare && navigator.canShare({files:[x]})); }catch(e){ return false; } };
-  let f=new File([b], n, {type:tipo.mime, lastModified:Date.now()});
-  let puede=sePuede(f), comoTxt=false;
-  // Chrome en Android solo deja compartir algunos tipos (imágenes, PDF, texto,
-  // CSV…) y el KML no está entre ellos. Para que también llegue a Dropbox por
-  // Compartir se manda el mismo contenido como texto: "…kml.txt". En la
-  // computadora se le quita ".txt" al nombre y abre en Google Earth.
-  if(!puede && tipo.ext!=='.csv'){
-    const t=new File([b], n+'.txt', {type:'text/plain', lastModified:Date.now()});
-    if(sePuede(t)){ f=t; puede=true; comoTxt=true; }
-  }
-  _gd={n,b,tipo,que,f,comoTxt};
+  const f=new File([b], n, {type:tipo.mime, lastModified:Date.now()});
+  const puede=sePuede(f);
+  // Chrome en Android no deja mandar KML por Compartir. Para el KML se usa
+  // entonces el camino de la v12, que sí llegaba a Dropbox: se descarga con su
+  // tipo real de archivo de mapas y Android muestra «Abrir con», donde se
+  // elige Dropbox. (En la v13 se descargaba con tipo genérico y Dropbox dejó
+  // de aparecer.)
+  const porAbrirCon = !puede && tipo.ext==='.kml';
+  _gd={n,b,tipo,que,f,porAbrirCon};
   $('gdArchivo').textContent=que;
-  $('gdCompartir').hidden=!puede;
-  $('gdNotaCompartir').textContent = !puede
-    ? 'Este teléfono no deja enviar este tipo de archivo por Compartir. Guárdalo en el teléfono y súbelo desde la app de Dropbox: + → Subir archivo → Descargas.'
-    : comoTxt
-      ? `Se abre Compartir: elige Dropbox y la carpeta del ensayo. Llega con el nombre ${f.name}; en la computadora se le quita «.txt» para abrirlo en Google Earth.`
-      : 'Se abre Compartir: elige Dropbox y la carpeta del ensayo.';
-  $('gdNotaCompartir').className = puede ? 'nota' : 'nota aviso';
+  $('gdCompartir').hidden = !(puede||porAbrirCon);
+  $('gdNotaCompartir').textContent = puede
+    ? 'Se abre Compartir: elige Dropbox y la carpeta del ensayo.'
+    : porAbrirCon
+      ? 'El teléfono muestra «Abrir con»: elige Dropbox y la carpeta del ensayo.'
+      : 'Este teléfono no deja enviar este tipo de archivo por Compartir. Guárdalo en el teléfono y súbelo desde la app de Dropbox: + → Subir archivo → Descargas.';
+  $('gdNotaCompartir').className = (puede||porAbrirCon) ? 'nota' : 'nota aviso';
   const esKml = tipo.ext==='.kml';
   $('gdNotaGuardar').textContent = esKml
-    ? 'Queda en la carpeta Descargas. Si el teléfono muestra «Abrir con», ciérralo con el botón Atrás: no hace falta elegir nada.'
+    ? 'Queda en la carpeta Descargas, para subirlo después desde la app de Dropbox.'
     : 'Queda en la carpeta Descargas.';
   $('gdNotaGuardar').className = esKml ? 'nota aviso' : 'nota';
   const d=$('gdDlg'); if(d.showModal) d.showModal(); else d.setAttribute('open','');
@@ -1552,11 +1550,16 @@ function cerrarGuardar(){ const d=$('gdDlg'); if(d.close) d.close(); else d.remo
 $('gdCerrar').onclick=cerrarGuardar;
 $('gdCompartir').onclick=async()=>{
   if(!_gd) return; const g=_gd;
+  if(g.porAbrirCon){
+    descargaDirecta(g.n, g.b);          // con su tipo real: Android ofrece «Abrir con» → Dropbox
+    log('KML por «Abrir con»:', g.n, tamano(g.b));
+    avisoDescarga('✓ '+g.que+' En «Abrir con» elige Dropbox y la carpeta del ensayo. Si Dropbox no aparece en la lista, usa «Guardar en este teléfono».');
+    cerrarGuardar(); return;
+  }
   try{
     await navigator.share({files:[g.f]});
     log('Compartido:', g.f.name, tamano(g.b));
-    avisoDescarga('✓ Enviado a Compartir — '+g.que+(g.comoTxt?` En Dropbox aparece como ${g.f.name}.`:'')+
-      ' Debe pesar lo mismo; si llega vacío, repite con «Guardar en este teléfono».');
+    avisoDescarga('✓ Enviado a Compartir — '+g.que+' Debe pesar lo mismo; si llega vacío, repite con «Guardar en este teléfono».');
     cerrarGuardar();
   }catch(e){
     // El aviso también va dentro del cuadro, que sigue abierto.
