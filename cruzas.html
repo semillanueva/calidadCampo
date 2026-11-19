@@ -1,0 +1,2831 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Siembra Cruzas — Cross y Self</title>
+<link rel="manifest" href="cruzas.webmanifest">
+<meta name="theme-color" content="#1f6f43">
+<link rel="icon" href="icon-cruzas.svg" type="image/svg+xml">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
+<style>
+  :root { --bg:#f4f6f8; --card:#fff; --accent:#1f6f43; --line:#dfe3e8;
+          --ok:#137333; --okbg:#e6f4ea; --bad:#b00020; --badbg:#fce8e6; --amber:#9a6700;
+          --amberbg:#fff4e0; --gray:#5f6368;
+          --macho:#a8791b; --machobg:#fdf5e3; --hembra:#1f6f43; --hembrabg:#eaf4ee; }
+  * { box-sizing:border-box; }
+  html { -webkit-text-size-adjust:100%; }
+  body { font-family:system-ui,Segoe UI,Roboto,Arial,sans-serif; background:var(--bg); margin:0; color:#1a1a1a;
+         padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px); }
+  .container { max-width:1150px; margin:0 auto; padding:18px; }
+  h1 { color:var(--accent); margin:.2em 0; font-size:1.5rem; }
+  h2 { margin:1.1em 0 .4em; font-size:1.05rem; border-bottom:2px solid var(--line); padding-bottom:4px; }
+  h3 { margin:0 0 8px; font-size:.95rem; color:var(--accent); }
+  .hint { font-size:.85rem; color:#666; margin:0 0 10px; }
+
+  .loaders { display:flex; gap:14px; flex-wrap:wrap; margin:10px 0 6px; }
+  .loaders > div { flex:1; min-width:300px; background:var(--card); border:1px solid var(--line);
+                   border-radius:8px; padding:12px; }
+  .loaders label { font-weight:600; display:block; margin-bottom:6px; font-size:.9rem; }
+  .req { font-size:.7rem; background:var(--accent); color:#fff; border-radius:8px; padding:1px 7px; margin-left:5px; vertical-align:middle; }
+  .file-status { font-size:.82rem; margin-top:6px; min-height:1em; line-height:1.5; }
+  input[type=file] { font-size:.8rem; max-width:100%; }
+  select.sel { padding:6px; border-radius:6px; border:1px solid var(--line); font-size:.82rem; background:#fff; max-width:100%; }
+  .btn-load { background:var(--accent); color:#fff; border:none; border-radius:6px; padding:7px 14px;
+              font-size:.85rem; cursor:pointer; margin-right:6px; }
+  .btn-load:hover { background:#175a37; }
+  .btn-load:disabled { background:#9db8ab; cursor:not-allowed; }
+
+  .map-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:7px; margin-top:10px; }
+  .map-grid label { font-size:.72rem; font-weight:600; display:block; margin-bottom:2px; color:#444; }
+  .map-grid select { width:100%; padding:5px; border-radius:6px; border:1px solid var(--line); font-size:.8rem; background:#fff; }
+
+  .scan-row { display:flex; gap:18px; flex-wrap:wrap; margin-top:8px; }
+  .scan-box { flex:1; min-width:280px; background:var(--card); border:2px solid var(--accent);
+              border-radius:10px; padding:14px; }
+  .scan-box label { font-weight:700; color:var(--accent); display:block; margin-bottom:6px; }
+  .scan-box input { width:100%; padding:13px 14px; font-size:1.25rem; border:1px solid var(--line);
+                    border-radius:8px; outline:none; font-family:ui-monospace,Consolas,monospace; }
+  .scan-box input:disabled { background:#eee; color:#999; }
+  .scan-box .sub { font-size:.8rem; color:#555; margin-top:6px; min-height:1em; }
+  .scan-box.waiting { border-color:#c9ced4; }
+
+  .verdict { margin:16px 0; border-radius:12px; padding:20px; text-align:center;
+             font-size:1.6rem; font-weight:800; letter-spacing:.5px; border:3px solid var(--line);
+             background:#fff; color:#888; }
+  .verdict.true  { background:var(--okbg);  border-color:var(--ok);  color:var(--ok); }
+  .verdict.false { background:var(--badbg); border-color:var(--bad); color:var(--bad); }
+  .verdict.warn  { background:var(--amberbg); border-color:var(--amber); color:var(--amber); }
+  .verdict.paso  { background:#e8f0fb; border-color:#1565c0; color:#0d47a1; }
+  .verdict small { display:block; font-size:.85rem; font-weight:600; margin-top:6px; letter-spacing:0; line-height:1.55; }
+
+  .panel { display:flex; gap:18px; flex-wrap:wrap; }
+  .panel > div { flex:1; min-width:270px; background:var(--card); border:1px solid var(--line);
+                 border-radius:8px; padding:12px; }
+  .kv { display:grid; grid-template-columns:auto 1fr; gap:4px 12px; font-size:.95rem; }
+  .kv b { color:#444; font-weight:600; }
+  .mono { font-family:ui-monospace,Consolas,monospace; }
+  .hl-ok { color:var(--ok); font-weight:700; }
+  .hl-bad { color:var(--bad); font-weight:700; }
+  .hl-warn { color:var(--amber); font-weight:700; }
+
+  table { width:100%; border-collapse:collapse; background:var(--card);
+          box-shadow:0 1px 3px rgba(0,0,0,.08); border-radius:8px; overflow:hidden; }
+  th,td { padding:8px 10px; text-align:left; border-bottom:1px solid var(--line); font-size:.86rem; }
+  th { background:var(--accent); color:#fff; }
+  tbody tr:nth-child(even){ background:#fafbfc; }
+  .table-wrap { overflow-x:auto; }
+  .badge-true  { background:var(--okbg);  color:var(--ok);  padding:2px 8px; border-radius:10px; font-weight:700; }
+  .badge-false { background:var(--badbg); color:var(--bad); padding:2px 8px; border-radius:10px; font-weight:700; }
+  .badge-warn  { background:var(--amberbg); color:var(--amber); padding:2px 8px; border-radius:10px; font-weight:700; }
+
+  .toolbar { display:flex; gap:10px; align-items:center; margin:.4em 0; flex-wrap:wrap; }
+  button.act { font-size:.82rem; border:1px solid var(--line); border-radius:6px;
+               padding:5px 12px; cursor:pointer; background:#fff; }
+  button.act:hover { background:#eef1f3; }
+  .counts { font-size:.85rem; color:#444; }
+
+  .summary { display:flex; gap:10px; flex-wrap:wrap; margin:10px 0; }
+  .summary .box { background:var(--card); border:1px solid var(--line); border-radius:8px;
+                  padding:10px 16px; text-align:center; min-width:96px; }
+  .summary .n { display:block; font-size:1.5rem; font-weight:800; }
+  .summary .label { font-size:.72rem; color:#666; }
+  .summary .ok .n { color:var(--ok); } .summary .bad .n { color:var(--bad); }
+  .summary .warn .n { color:var(--amber); } .summary .total .n { color:var(--accent); }
+
+  .modo-bar { display:flex; gap:0; border:1.5px solid var(--accent); border-radius:8px; overflow:hidden; max-width:440px; margin:6px 0 2px; }
+  .modo-bar button { flex:1; border:0; background:#fff; color:var(--accent); font-weight:700;
+                     font-size:.85rem; padding:9px 8px; cursor:pointer; border-right:1.5px solid var(--accent); }
+  .modo-bar button:last-child { border-right:0; }
+  .modo-bar button.on { background:var(--accent); color:#fff; }
+
+  .mapa-wrap { overflow-x:auto; background:var(--card); border:1px solid var(--line); border-radius:8px; padding:10px; }
+  .mapa-grid { display:grid; gap:3px; }
+  .mcell { border:1px solid var(--line); border-radius:4px; padding:4px 3px; min-height:48px; font-size:.66rem;
+           line-height:1.25; position:relative; background:#fff; }
+  .mcell .pc { font-family:ui-monospace,Consolas,monospace; font-weight:700; font-size:.76rem; display:block; }
+  .mcell .su { color:#888; font-size:.6rem; }
+  .mcell.macho { background:var(--machobg); border-color:var(--macho); }
+  .mcell.hembra { background:var(--hembrabg); border-color:var(--hembra); }
+  /* Sembrado: verde fuerte y sin transparencia, para que se vea con sol en campo */
+  .mcell.hecho { opacity:1; }
+  .mcell.actual { outline:3px solid var(--accent); outline-offset:-1px; box-shadow:0 0 0 3px #cfe6da; }
+  .mcell.okmark { background:#188442; border-color:#0b4d26; border-width:2px; color:#fff; }
+  .mcell.okmark .su { color:#e3f5ea; }
+  .mcell.okmark.badmark { color:inherit; }
+  .mcell.okmark.badmark .su { color:#888; }
+  .mcell.badmark { background:var(--badbg); border-color:var(--bad); }
+  .mcell.vacio { background:#f6f7f8; border-style:dashed; }
+  .mcell .tick { position:absolute; top:2px; right:3px; font-size:.7rem; font-weight:800; }
+  .mrow-lbl { font-size:.68rem; font-weight:700; color:#555; display:flex; flex-direction:column;
+              align-items:center; justify-content:center; font-family:ui-monospace,Consolas,monospace; }
+
+  .alerta { border-left:4px solid var(--amber); background:var(--amberbg); padding:8px 12px;
+            border-radius:4px; font-size:.84rem; margin:10px 0; line-height:1.6; }
+  .alerta.bad { border-left-color:var(--bad); background:var(--badbg); }
+  .alerta.ok { border-left-color:var(--ok); background:var(--okbg); }
+
+  #camModal { position:fixed; inset:0; background:#000; z-index:999; display:none;
+              align-items:center; justify-content:center; flex-direction:column; padding:10px;
+              padding-top:calc(10px + env(safe-area-inset-top,0px));
+              padding-bottom:calc(10px + env(safe-area-inset-bottom,0px)); }
+  /* El escenario toma la proporción real del video, así el marco blanco
+     coincide exactamente con el recorte que se manda al decodificador.
+     Con object-fit:cover el video se recortaba por los lados y el marco
+     mentía: lo que veías dentro no era lo que se analizaba. */
+  #camStage { position:relative; width:100%; max-width:760px; max-height:62vh;
+              background:#000; border-radius:8px; overflow:hidden; margin:auto; }
+  #camVideo { position:absolute; inset:0; width:100%; height:100%; object-fit:fill; display:none; }
+  #camReader { width:100%; }
+  #camGuide { position:absolute; left:6%; right:6%; top:27.5%; height:45%;
+              border:2px solid rgba(255,255,255,.9); border-radius:6px; pointer-events:none; display:none; }
+  #camGuide::after { content:''; position:absolute; left:3%; right:3%; top:50%; height:2px;
+                     background:rgba(255,80,60,.9); }
+  #camGuide.cerca { border-color:#ffd24d; }
+  #camInfo { color:#fff; font-size:.88rem; margin:9px 0 7px; text-align:center; min-height:1.2em;
+             font-family:ui-monospace,Consolas,monospace; }
+  #camCtrls { display:flex; gap:7px; flex-wrap:wrap; justify-content:center; }
+  .camb { background:#1e1e1e; color:#fff; border:1px solid #555; border-radius:7px;
+          padding:10px 14px; font-size:.86rem; cursor:pointer; }
+  .camb.on { background:#b8860b; border-color:#b8860b; }
+  .camb.primaria { background:var(--accent); border-color:var(--accent); font-weight:700; }
+  .camb:disabled { opacity:.4; }
+  #camPaso { color:#fff; font-weight:800; font-size:1.05rem; margin-top:8px; text-align:center; min-height:1.3em; }
+  #camPaso.ok { color:#7ee2a0; }
+  #camStage.pausa video { filter:brightness(.45); }
+  #camStage.pausa #camGuide { border-color:#7ee2a0; }
+  details.diag { margin-top:10px; font-size:.82rem; }
+  details.diag pre { background:#1a1a17; color:#74c69d; padding:10px; border-radius:6px;
+                     font-size:11px; overflow:auto; max-height:280px; white-space:pre-wrap; }
+
+  /* ===== Barra fija y modo campo (tablet) ===== */
+  .topbar { position:sticky; top:env(safe-area-inset-top,0px); z-index:50; background:var(--card);
+            border-bottom:1px solid var(--line); padding:8px 14px; display:flex; gap:10px;
+            align-items:center; flex-wrap:wrap; box-shadow:0 1px 4px rgba(0,0,0,.06); }
+  .topbar h1 { font-size:1rem; margin:0; flex:1; min-width:140px; }
+  .chip { font-size:.72rem; padding:3px 9px; border-radius:11px; background:var(--graybg); color:#444; }
+  .chip.ok { background:var(--okbg); color:var(--ok); font-weight:600; }
+  .chip.bad { background:var(--badbg); color:var(--bad); font-weight:600; }
+  .chip.warn { background:var(--amberbg); color:var(--amber); font-weight:600; }
+  .sw { display:flex; align-items:center; gap:6px; font-size:.78rem; font-weight:600; color:var(--accent);
+        border:1.5px solid var(--accent); border-radius:16px; padding:4px 11px; cursor:pointer; background:#fff; }
+  .sw.on { background:var(--accent); color:#fff; }
+  .zoomer { display:flex; gap:0; border:1px solid var(--line); border-radius:6px; overflow:hidden; }
+  .zoomer button { border:0; background:#fff; padding:4px 11px; font-size:.85rem; cursor:pointer;
+                   border-right:1px solid var(--line); }
+  .zoomer button:last-child { border-right:0; }
+
+  body.campo #secCarga, body.campo #histFull, body.campo .solo-escritorio { display:none !important; }
+  body.campo .container { padding:8px 10px 40px; max-width:100%; }
+  body.campo h2 { font-size:.85rem; margin:.7em 0 .3em; }
+  body.campo .verdict { font-size:1.35rem; padding:12px; margin:10px 0; }
+  body.campo .verdict small { font-size:.78rem; margin-top:3px; }
+  body.campo .scan-box { padding:9px 11px; min-width:210px; }
+  body.campo .scan-box label { font-size:.8rem; margin-bottom:3px; }
+  body.campo .scan-box input { padding:9px 10px; font-size:1.05rem; }
+  body.campo .scan-row { gap:10px; }
+  body.campo .panel { gap:10px; }
+  body.campo .panel > div { padding:8px 10px; min-width:200px; }
+  body.campo .kv { font-size:.8rem; gap:2px 8px; }
+  body.campo .panel h3 { font-size:.8rem; margin-bottom:4px; }
+  body.campo .summary .box { padding:5px 11px; min-width:66px; }
+  body.campo .summary .n { font-size:1.1rem; }
+  body.campo .modo-bar button { padding:6px; font-size:.78rem; }
+  body.campo .mapa-wrap { padding:6px; }
+
+  /* zoom del mapa: una finca trae 18 plots por faja y no caben a tamaño normal */
+  .mapa-grid { --cw:78px; --cf:.66rem; --cp:.76rem; }
+  body[data-zoom="0"] .mapa-grid { --cw:48px; --cf:.55rem; --cp:.62rem; }
+  body[data-zoom="2"] .mapa-grid { --cw:100px; --cf:.74rem; --cp:.86rem; }
+  .mcell { font-size:var(--cf); }
+  .mcell .pc { font-size:var(--cp); }
+  body[data-zoom="0"] .mcell { min-height:38px; padding:2px; }
+  body[data-zoom="0"] .mcell .su { display:none; }
+
+
+  /* ===== Cabecera con pestañas ===== */
+  .topbar { position:sticky; top:0; z-index:50; background:var(--accent); color:#fff;
+            padding:calc(8px + env(safe-area-inset-top,0px)) 12px 0; display:block;
+            box-shadow:0 2px 6px rgba(0,0,0,.18); }
+  .tb-row { display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding-bottom:6px; }
+  .topbar h1 { font-size:1.05rem; margin:0; flex:1; color:#fff; min-width:140px; }
+  .topbar .chip { background:rgba(255,255,255,.18); color:#fff; }
+  .topbar .chip.ok { background:#d8f3e2; color:#0d5a2c; }
+  .topbar .chip.bad { background:#ffd9d4; color:#8a0014; }
+  .topbar .chip.warn { background:#ffe8b3; color:#6b4a00; }
+  .tabs { display:flex; gap:4px; }
+  .tab { flex:1; display:flex; align-items:center; justify-content:center; gap:7px;
+         background:rgba(255,255,255,.12); color:#e3f1e8; border:0; border-radius:9px 9px 0 0;
+         padding:11px 8px; font-size:.95rem; font-weight:700; cursor:pointer; }
+  .tab .tn { width:22px; height:22px; border-radius:50%; background:rgba(255,255,255,.22);
+             display:inline-flex; align-items:center; justify-content:center; font-size:.78rem; }
+  .tab.on { background:var(--bg); color:var(--accent); }
+  .tab.on .tn { background:var(--accent); color:#fff; }
+  .tab:disabled { opacity:.45; cursor:not-allowed; }
+  .tab:disabled .tl::after { content:' 🔒'; font-size:.75rem; }
+  .tbadge { font-size:.7rem; background:rgba(255,255,255,.25); border-radius:9px; padding:1px 7px; }
+  .tab.on .tbadge { background:var(--okbg); color:var(--ok); }
+  .pane { display:none; padding-top:12px; }
+  .pane.on { display:block; }
+
+  /* ===== Lista de archivos obligatorios ===== */
+  .checklist { display:flex; gap:8px; flex-wrap:wrap; margin:4px 0 12px; }
+  .checklist .ci { flex:1; min-width:150px; display:flex; align-items:center; gap:8px; padding:10px 12px;
+                   border-radius:9px; font-weight:700; font-size:.9rem; border:2px solid; }
+  .checklist .ci.si { background:var(--okbg); border-color:var(--ok); color:var(--ok); }
+  .checklist .ci.no { background:#fff; border-color:#d0d5da; color:#8a9096; border-style:dashed; }
+  .checklist .ci.mal { background:var(--badbg); border-color:var(--bad); color:var(--bad); }
+  .checklist .ico { font-size:1.15rem; }
+
+  .loader { border-top:4px solid #d0d5da !important; }
+  .loader.listo { border-top-color:var(--ok) !important; }
+  .loader.mal { border-top-color:var(--bad) !important; }
+  .ld-tit { display:flex !important; align-items:center; gap:8px; font-size:1rem !important; }
+  .ld-n { width:24px; height:24px; border-radius:50%; background:var(--accent); color:#fff;
+          display:inline-flex; align-items:center; justify-content:center; font-size:.8rem; }
+  .mini { font-size:.74rem !important; font-weight:600; }
+  details.cols { margin-top:8px; font-size:.8rem; }
+  details.cols summary { cursor:pointer; color:var(--accent); font-weight:600; }
+
+  /* Botón de archivo: el control nativo blanco casi no se ve */
+  .filebtn { display:block !important; position:relative; margin:0 !important; }
+  .filebtn input { position:absolute; inset:0; opacity:0; width:100%; cursor:pointer; }
+  .filebtn span { display:block; text-align:center; padding:12px; border-radius:8px; font-weight:700;
+                  background:var(--accent); color:#fff; font-size:.95rem; }
+  .filebtn span::before { content:'📂 '; }
+  .loader.listo .filebtn span { background:var(--okbg); color:var(--ok); border:2px solid var(--ok); }
+  .loader.listo .filebtn span::before { content:'✓ '; }
+
+  /* ===== Botones con color ===== */
+  .btn-big, .btn-sec, .btn-peligro, .btn-cam { border-radius:9px; font-weight:700; cursor:pointer;
+             font-size:.95rem; padding:12px 18px; border:2px solid; }
+  .btn-big { background:var(--accent); border-color:var(--accent); color:#fff; box-shadow:0 2px 5px rgba(31,111,67,.3); }
+  .btn-big:hover { background:#175a37; }
+  .btn-big:disabled { background:#b9c7bf; border-color:#b9c7bf; box-shadow:none; cursor:not-allowed; }
+  .btn-sec { background:#e3f1e8; border-color:var(--accent); color:var(--accent); }
+  .btn-sec:hover { background:#cfe6d8; }
+  .btn-sec:disabled { opacity:.45; cursor:not-allowed; }
+  .btn-sec.on { background:var(--accent); color:#fff; }
+  .btn-peligro { background:#fff0ee; border-color:var(--bad); color:var(--bad); }
+  .btn-peligro:hover { background:var(--badbg); }
+  .btn-cam { background:#1565c0; border-color:#1565c0; color:#fff; padding:9px 14px; font-size:.9rem;
+             box-shadow:0 2px 5px rgba(21,101,192,.3); }
+  .btn-cam:hover { background:#0d4f9a; }
+  .chico { padding:8px 11px !important; font-size:.82rem !important; }
+  .toolbar.acciones { gap:10px; margin:14px 0; }
+  .toolbar.acciones .btn-big { flex:1; min-width:220px; font-size:1.05rem; padding:14px; }
+
+  .sb-head { display:flex; align-items:center; gap:8px; margin-bottom:8px; flex-wrap:wrap; }
+  .sb-head label { flex:1; margin:0 !important; font-size:1.05rem; }
+  .sb-btns { display:flex; gap:6px; }
+
+  .mapa-head { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin:16px 0 8px; }
+  .mapa-head h2 { margin:0; border:0; padding:0; }
+  .mapa-head .counts { flex:1; }
+  .mh-btns { display:flex; gap:6px; align-items:center; }
+  .zoomer { border:2px solid var(--accent) !important; border-radius:9px !important; }
+  .zoomer button { background:#e3f1e8 !important; color:var(--accent); font-weight:800; font-size:1rem !important;
+                   padding:6px 14px !important; border-right:2px solid var(--accent) !important; }
+  .zoomer button:last-child { border-right:0 !important; }
+
+  .modo-bar { max-width:none !important; }
+  .modo-bar button { padding:11px 8px !important; font-size:.92rem !important; }
+
+  .finca-bar { display:flex; align-items:center; gap:10px; flex-wrap:wrap; background:var(--card);
+               border:1px solid var(--line); border-radius:8px; padding:9px 12px; margin:8px 0 4px; font-size:.88rem; }
+  .finca-bar .ft { flex:1; min-width:200px; line-height:1.45; }
+  .finca-bar.sin { border-color:var(--amber); background:var(--amberbg); }
+  .finca-bar.midiendo { border-color:#1565c0; background:#e8f0fb; }
+  .gpslink { color:var(--accent); font-weight:600; text-decoration:none; white-space:nowrap; }
+  .gpsmal { color:var(--amber); }
+  @media (max-width:640px){
+    .container{padding:12px;}
+    .verdict{font-size:1.25rem;padding:16px;}
+    .scan-box input{font-size:1.15rem;}
+  }
+
+  /* ===== Dos escaneos: etiqueta del plot y sobre ===== */
+  .paso-bar { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin:8px 0 4px; }
+
+  /* ===== Siembra Cruzas: siembras guardadas, fase y saltados ===== */
+  .siembras { border:2px solid var(--accent); border-radius:12px; padding:12px 14px; margin:4px 0 14px;
+              background:#f3faf6; display:grid; gap:10px; }
+  .siembras .sb-tit { font-weight:700; color:var(--accent); font-size:.95rem; }
+  .siembras .sb-act { font-size:1.02rem; }
+  .siembras .sb-act small { display:block; color:var(--gray); font-size:.85rem; }
+  .sb-lista { display:grid; gap:6px; }
+  .sb-item { display:flex; gap:8px; align-items:center; flex-wrap:wrap; background:#fff; border:1px solid var(--line);
+             border-radius:9px; padding:8px 10px; }
+  .sb-item .sb-txt { flex:1 1 200px; min-width:0; }
+  .sb-item .sb-txt small { display:block; color:var(--gray); font-size:.82rem; }
+  .fase-bar { display:flex; gap:6px; align-items:center; flex-wrap:wrap; margin:6px 0 2px; padding:10px 12px;
+              border-radius:10px; background:#fff8e6; border:2px solid #e3b341; }
+  .fase-bar .fase-tit { font-weight:700; margin-right:4px; }
+  .fase-bar button { font:inherit; font-weight:700; padding:9px 14px; border-radius:999px; border:2px solid #c9ced4;
+                     background:#fff; cursor:pointer; }
+  .fase-bar button.on { background:var(--accent); border-color:var(--accent); color:#fff; }
+  .mcell.fuerafase { opacity:.28; }
+  .mcell.saltado { border:2px dashed #8a6d00; background:#fff4cc; }
+  .mcell.saltado .tick::after { content:'⤼'; }
+  .paso-bar .pp { flex:1; min-width:150px; padding:9px 12px; border-radius:9px; border:2px dashed #c9ced4;
+                  color:#8a9096; font-weight:700; font-size:.9rem; background:#fff; line-height:1.35; }
+  .paso-bar .pp.on { border:2px solid #1565c0; color:#0d47a1; background:#e8f0fb; }
+  .paso-bar .pp.hecho { border:2px solid var(--ok); color:var(--ok); background:var(--okbg); }
+  .paso-bar .pp small { display:block; font-weight:600; font-size:.78rem; }
+
+  /* ===== Envío a Google Sheets ===== */
+  button.chip { border:0; font:inherit; font-size:.72rem; cursor:pointer; }
+  /* ===== Cuadro "¿Dónde guardar?" (CSV y KML en el teléfono) ===== */
+  #gdDlg { border:0; border-radius:14px; padding:0; width:min(440px,94vw); color:#1a1a1a; }
+  #gdDlg::backdrop { background:rgba(0,0,0,.45); }
+  #gdDlg .in { padding:18px; display:grid; gap:12px; }
+  #gdDlg h3 { margin:0; font-size:1.15rem; color:var(--accent); }
+  #gdDlg .archivo { font-size:.9rem; color:var(--gray); word-break:break-word; margin:0; }
+  #gdDlg button { width:100%; padding:14px 12px; font-size:1.05rem; }
+  #gdDlg [hidden] { display:none; }
+  #gdDlg .nota { font-size:.88rem; color:var(--gray); margin:-4px 0 0; line-height:1.4; }
+  #gdDlg .nota.aviso { background:var(--amberbg); color:#1a1a1a; border-radius:8px; padding:8px 10px; margin:0; }
+
+  #envDlg { border:0; border-radius:12px; padding:0; width:min(440px,94vw); color:#1a1a1a; }
+  #envDlg::backdrop { background:rgba(0,0,0,.45); }
+  #envDlg .in { padding:18px; }
+  #envDlg h3 { margin:0 0 4px; font-size:1.1rem; color:var(--accent); }
+  #envDlg label { display:block; margin:12px 0 4px; font-weight:600; font-size:.88rem; }
+  #envDlg input { width:100%; padding:10px; font-size:1rem; border:1px solid var(--line); border-radius:8px; }
+  #envEst { margin-top:14px; padding:10px 12px; border-radius:8px; background:var(--graybg);
+            font-size:.88rem; line-height:1.45; white-space:pre-line; word-break:break-word; }
+  #envEst.ok { background:var(--okbg); color:var(--ok); }
+  #envEst.bad { background:var(--badbg); color:var(--bad); }
+  #envDlg .acciones { display:flex; flex-wrap:wrap; gap:8px; margin-top:14px; }
+  #envDlg .acciones button { flex:1 1 auto; padding:10px 12px; }
+</style>
+</head>
+<body>
+<header class="topbar">
+  <div class="tb-row">
+    <h1>Siembra Cruzas</h1>
+    <span class="chip" id="chipGps" title="Estado del GPS">📍 GPS</span>
+    <span class="chip" id="chipRed" title="Estado de conexión">…</span>
+    <button class="chip" id="chipEnvio" type="button" title="Envío a Google Sheets">☁ …</button>
+    <span class="chip" id="chipArch">sin archivos</span>
+  </div>
+  <nav class="tabs" role="tablist">
+    <button class="tab on" data-tab="carga" role="tab"><span class="tn">1</span><span class="tl">Archivos</span><span class="tbadge" id="tbCarga">0/2</span></button>
+    <button class="tab" data-tab="escaneo" role="tab" disabled><span class="tn">2</span><span class="tl">Escanear</span></button>
+    <button class="tab" data-tab="hist" role="tab" disabled><span class="tn">3</span><span class="tl">Historial</span><span class="tbadge" id="tbHist">0</span></button>
+  </nav>
+</header>
+
+<div class="container">
+
+<!-- ==================== PESTAÑA 1: ARCHIVOS ==================== -->
+<section class="pane on" id="secCarga" data-pane="carga">
+  <div class="siembras" id="siembrasBox">
+    <span class="sb-tit">Siembra abierta</span>
+    <div class="sb-act" id="sbActual">—</div>
+    <div class="sb-lista" id="sbLista"></div>
+    <div class="toolbar" style="margin:0">
+      <button class="btn-sec" id="btnNuevaSiembra" type="button">＋ Nueva siembra</button>
+    </div>
+    <p class="hint" style="margin:0">Cada siembra guarda su libro, su mapa y su avance. Puedes pasar de una a otra sin perder nada: por ejemplo, sembrar los machos de un Cross, sembrar otro vivero y volver días después para las hembras.</p>
+  </div>
+
+  <p class="hint">Sube el libro de campo y el mapa (Cross o Self). Al escanear el <b>OBS_UNIT_ID</b> la app confirma que está en el libro y lo marca en su plot del mapa, con la ubicación GPS. Funciona sin internet y sin BMS.</p>
+
+  <div class="checklist" id="checklist"></div>
+
+  <div class="loaders">
+    <div class="loader" id="ldLibro">
+      <label class="ld-tit"><span class="ld-n">1</span> Libro de campo</label>
+      <label class="filebtn"><input type="file" id="fileLibro" accept=".xlsx,.xls,.csv"><span>Elegir archivo</span></label>
+      <div id="hojaLibroWrap" style="display:none;margin-top:8px">
+        <label class="mini">Hoja</label>
+        <select class="sel" id="hojaLibro"></select>
+      </div>
+      <div id="locWrap" style="display:none;margin-top:8px">
+        <label class="mini">Localidad / instancia</label>
+        <select class="sel" id="selLoc"></select>
+      </div>
+      <div class="file-status" id="statusLibro">Sin cargar.</div>
+      <details class="cols"><summary>Columnas detectadas</summary>
+        <div class="map-grid" id="mapeoLibro"></div></details>
+    </div>
+
+    <div class="loader" id="ldMapa">
+      <label class="ld-tit"><span class="ld-n">2</span> Mapa de campo</label>
+      <label class="filebtn"><input type="file" id="fileMapa" accept=".xlsx,.xls"><span>Elegir archivo</span></label>
+      <div id="hojaMapaWrap" style="display:none;margin-top:8px">
+        <label class="mini">Hoja / localidad</label>
+        <select class="sel" id="hojaMapa"></select>
+      </div>
+      <div class="file-status" id="statusMapa">Sin cargar.</div>
+    </div>
+  </div>
+
+  <div id="cruceResumen"></div>
+
+  <div class="loader" id="ldAvance" style="margin-top:12px">
+    <label class="ld-tit">Continuar una siembra que empezó otro teléfono</label>
+    <p class="hint" style="margin:4px 0 8px">Primero carga el libro y el mapa de ese vivero. Después carga el CSV del historial del otro teléfono (desde Dropbox): los plots que salieron CORRECTO quedan marcados como sembrados.</p>
+    <label class="filebtn"><input type="file" id="fileAvance" accept=".csv,.txt,text/csv,text/plain"><span>Cargar CSV del historial</span></label>
+    <div class="file-status" id="statusAvance"></div>
+  </div>
+
+  <div class="toolbar acciones">
+    <button class="btn-big" id="btnIrEscaneo" disabled>Continuar a escanear &rarr;</button>
+    <button class="btn-sec" id="btnCruzar" disabled>Revisar cruce</button>
+    <button class="btn-peligro" id="btnLimpiarTodo">Eliminar esta siembra</button>
+  </div>
+  <p class="hint" id="verApp" style="text-align:right;margin-top:18px"></p>
+</section>
+
+<!-- ==================== PESTAÑA 2: ESCANEAR ==================== -->
+<section class="pane" data-pane="escaneo">
+  <p class="hint" id="modoHint">Siembra en orden, con dos escaneos por plot: primero la <b>etiqueta del plot</b> y después el <b>sobre</b>. Los dos deben ser el mismo OBS_UNIT_ID, estar en el libro y ser el plot que toca en el serpentín.</p>
+  <div class="finca-bar" id="fincaBar" style="display:none"></div>
+
+  <div class="fase-bar" id="faseBar" hidden>
+    <span class="fase-tit">Qué se siembra hoy:</span>
+    <button type="button" data-fase="todo">Todo</button>
+    <button type="button" data-fase="macho">Solo machos</button>
+    <button type="button" data-fase="hembra">Solo hembras</button>
+  </div>
+
+  <div class="paso-bar" id="pasoBar"></div>
+
+  <div class="scan-row">
+    <div class="scan-box" id="boxObs">
+      <div class="sb-head">
+        <label for="scanObs" id="lblScan">1 · Etiqueta del plot</label>
+        <span class="sb-btns">
+          <button class="btn-sec chico" data-kbd="scanObs" title="Escribir a mano">⌨ Teclado</button>
+          <button class="btn-cam" data-cam="scanObs">📷 Cámara</button>
+        </span>
+      </div>
+      <input type="text" id="scanObs" placeholder="Carga los archivos primero" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" inputmode="none" disabled>
+      <div class="sub" id="subObs"></div>
+    </div>
+  </div>
+
+  <div class="verdict" id="verdict">Carga los dos archivos para empezar</div>
+
+  <div class="panel">
+    <div>
+      <h3>Plot (libro + mapa)</h3>
+      <div class="kv" id="kvPlot"><b>OBS UNIT ID</b><span>&mdash;</span><b>Plot</b><span>&mdash;</span><b>Faja / Surco</b><span>&mdash;</span><b>GID</b><span>&mdash;</span><b>Designation</b><span>&mdash;</span><b>Entry</b><span>&mdash;</span></div>
+    </div>
+    <div>
+      <h3>Ubicación del escaneo</h3>
+      <div class="kv" id="kvGps"><b>Latitud</b><span>&mdash;</span><b>Longitud</b><span>&mdash;</span><b>Precisión</b><span>&mdash;</span></div>
+    </div>
+  </div>
+
+  <div class="mapa-head">
+    <h2>Mapa</h2>
+    <span class="counts" id="progreso">&mdash;</span>
+    <span class="mh-btns">
+      <button class="btn-sec chico" id="btnSaltar" type="button" title="Dejar este plot para después">⤼ Saltar plot</button>
+      <button class="btn-sec chico" id="btnVoltear">⇄ Voltear</button>
+      <span class="zoomer"><button id="zOut" title="Más chico">&minus;</button><button id="zIn" title="Más grande">+</button></span>
+    </span>
+  </div>
+  <div class="mapa-wrap"><div class="mapa-grid" id="mapaGrid"><span class="hint">Carga el mapa.</span></div></div>
+</section>
+
+<!-- ==================== PESTAÑA 3: HISTORIAL ==================== -->
+<section class="pane" data-pane="hist" id="histFull">
+  <div class="summary">
+    <div class="box total"><span class="n" id="sTotal">0</span><span class="label">Escaneos</span></div>
+    <div class="box ok"><span class="n" id="sOk">0</span><span class="label">Correctos</span></div>
+    <div class="box warn"><span class="n" id="sWarn">0</span><span class="label">Advertencias</span></div>
+    <div class="box bad"><span class="n" id="sBad">0</span><span class="label">Errores</span></div>
+    <div class="box warn"><span class="n" id="sFuera">0</span><span class="label">Fuera de finca</span></div>
+  </div>
+  <div class="toolbar acciones">
+    <button class="btn-big" id="btnExport">⬇ Descargar historial (CSV)</button>
+    <button class="btn-sec" id="btnExportPend">⬇ Plots pendientes (CSV)</button>
+    <button class="btn-sec" id="btnExportKml">⬇ Puntos GPS (KML)</button>
+    <button class="btn-peligro" id="btnClear">Limpiar historial</button>
+  </div>
+  <p class="hint" id="estDescarga" role="status" style="margin-top:8px"></p>
+  <div class="table-wrap">
+    <table id="histTable">
+      <thead><tr>
+        <th>Hora</th><th>OBS UNIT ID</th><th>Etiqueta</th><th>Plot</th><th>Faja</th><th>Surco</th>
+        <th>GID</th><th>Entry</th><th>Resultado</th><th>Ubicación</th><th>Finca</th><th>Detalle</th>
+      </tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+  <details class="diag"><summary>Diagnóstico de lectura</summary><pre id="diag">(sin datos)</pre></details>
+</section>
+
+</div>
+
+<div id="camModal">
+  <div id="camStage">
+    <video id="camVideo" playsinline muted></video>
+    <div id="camGuide"></div>
+    <div id="camReader"></div>
+  </div>
+  <div id="camPaso"></div>
+  <div id="camInfo">Iniciando cámara…</div>
+  <div id="camCtrls">
+    <button class="camb" id="camTorch">Linterna</button>
+    <button class="camb" id="camZoomOut">Zoom &minus;</button>
+    <button class="camb" id="camZoomIn">Zoom +</button>
+    <button class="camb" id="camFoto">Tomar foto y leer</button>
+    <select class="camb" id="camFmt" title="Tipo de código">
+      <option value="c128">Code 128 (etiquetas BMS)</option>
+      <option value="todos">Todos los formatos</option>
+    </select>
+    <button class="camb" id="camFlip">Cambiar cámara</button>
+    <button class="camb primaria" id="camCerrar">Cerrar</button>
+  </div>
+</div>
+
+<dialog id="gdDlg">
+  <div class="in">
+    <h3>¿Dónde guardar el archivo?</h3>
+    <p class="archivo" id="gdArchivo"></p>
+    <button class="btn-big" id="gdCompartir" type="button">📤 Enviar a Dropbox</button>
+    <p class="nota" id="gdNotaCompartir">Se abre Compartir: elige Dropbox y la carpeta del ensayo.</p>
+    <button class="btn-big" id="gdCarpeta" type="button" hidden>📁 Elegir carpeta (Dropbox)</button>
+    <p class="nota" id="gdNotaCarpeta" hidden>Se abre «Guardar como»: toca ☰ o «Guardar en…», elige Dropbox y la carpeta del ensayo.</p>
+    <button class="btn-sec" id="gdGuardar" type="button">📱 Guardar en este teléfono</button>
+    <p class="nota" id="gdNotaGuardar">Queda en la carpeta Descargas.</p>
+    <p class="nota" id="gdDiag" style="font-size:.75rem;opacity:.8"></p>
+    <button class="btn-sec" id="gdCerrar" type="button">Cancelar</button>
+  </div>
+</dialog>
+
+<dialog id="envDlg">
+  <div class="in">
+    <h3>Envío a Google Sheets</h3>
+    <label for="envTec">Tablet o técnico</label>
+    <input id="envTec" autocomplete="off" placeholder="Ej.: Tablet 2 – Alessandro">
+    <label for="envUrl">URL del Apps Script</label>
+    <input id="envUrl" type="url" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" inputmode="url" placeholder="https://script.google.com/macros/s/…/exec">
+    <label for="envClave">Clave</label>
+    <input id="envClave" type="password" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
+    <label style="font-weight:400;display:flex;gap:6px;align-items:center;margin-top:6px">
+      <input type="checkbox" id="envVerClave" style="width:auto"> Mostrar clave</label>
+    <div id="envEst"></div>
+    <div class="acciones">
+      <button class="btn-big" id="envGuardar" type="button">Guardar</button>
+      <button class="btn-sec" id="envProbar" type="button">Probar conexión</button>
+      <button class="btn-sec" id="envAhora" type="button">Enviar ahora</button>
+      <button class="btn-sec" id="envAbrir" type="button">Abrir URL</button>
+      <button class="btn-sec" id="envCerrar" type="button">Cerrar</button>
+    </div>
+  </div>
+</dialog>
+
+<script>
+'use strict';
+const $ = id => document.getElementById(id);
+// Cambiar en cada versión que se sube: sirve para confirmar en la tablet que
+// ya tomó la última (se ve abajo en la pestaña Archivos).
+const VERSION_APP = '19-nov-2026 · Cruzas v1 (machos / hembras, varias siembras)';
+const esc = s => String(s==null?'':s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const LOG = [];
+function log(...a){ LOG.push(a.map(x=>typeof x==='string'?x:JSON.stringify(x)).join(' ')); $('diag').textContent = LOG.slice(-250).join('\n'); }
+
+/* ============================================================
+   NORMALIZACIÓN
+   ============================================================ */
+// Los LOT_UID de BMS distinguen mayúsculas (ej. 2QEDL8ECOxKt6): el código
+// se conserva tal cual. Antes se pasaba todo a mayúsculas.
+function normCode(s){ return String(s==null?'':s).trim().replace(/\s+/g,''); }
+// "29", "29.0" y "029" son el mismo Entry.
+function normEntry(s){ const t=normLoose(String(s??'').replace(/\.0+$/,'')); return /^\d+$/.test(t)?String(parseInt(t,10)):t; }
+// Devuelve el texto del problema si el Entry del libro y el del mapa no coinciden.
+function entryDistinto(pm,fila){
+  if(!pm||!fila||!pm.entry||!fila.entry) return '';
+  if(normEntry(pm.entry)===normEntry(fila.entry)) return '';
+  return `El Entry no coincide: el mapa dice Entry ${pm.entry} en el plot ${pm.plot} y el libro dice Entry ${fila.entry}.`;
+}
+function normLoose(s){ return normCode(s).toUpperCase().replace(/[^A-Z0-9]/g,''); }
+function normGid(s){ const a=normLoose(s); return /^\d+$/.test(a)?String(parseInt(a,10)):a; }
+// Llaves de búsqueda en orden de preferencia: exacta primero, y luego
+// tolerantes (sin mayúsculas/símbolos, sin ceros a la izquierda).
+function clavesDe(s){
+  const ex = normCode(s); if(!ex) return [];
+  const set = new Set([ex]);
+  const a = normLoose(s);
+  if(a) set.add('~'+a);
+  if(/^\d+$/.test(a)) set.add('#'+parseInt(a,10));
+  return [...set];
+}
+// Una llave tolerante que apunta a dos registros distintos queda marcada
+// como ambigua y no se usa: mejor "no encontrado" que el registro equivocado.
+const AMBIG={ambiguo:true};
+function indexar(mapa, valor, reg){
+  clavesDe(valor).forEach((k,i)=>{
+    if(!mapa.has(k)){ mapa.set(k,reg); return; }
+    if(i>0 && mapa.get(k)!==reg) mapa.set(k,AMBIG);
+  });
+}
+function buscarEn(mapa, valor){
+  for(const k of clavesDe(valor)){ const r=mapa.get(k); if(r && r!==AMBIG) return r; }
+  return null;
+}
+function normHdr(s){ return String(s==null?'':s).trim().toLowerCase()
+  .normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]/g,''); }
+// "SN El Ovejero (SN_OVEJERO)" y "SN El Ovejero" deben comparar igual
+function normLocal(s){ return normLoose(String(s||'').replace(/\([^)]*\)\s*$/,'')); }
+
+/* ============================================================
+   ESTADO
+   ============================================================ */
+let libro=null, mapa=null;
+let idxObs=new Map(), idxPlotLibro=new Map(), idxPlotMapa=new Map(), idxObsTodas=new Map();
+let orden=[], historial=[], sembrados=new Map(), errores=new Set();
+let modo='secuencia', volteado=false, locSel='', campo=false, zoom=1;
+// Siembra Cruzas: fase del día (todo / macho / hembra), plots saltados y siembra abierta.
+let fase='todo', saltados=new Set(), siembraId=null;
+let _wbLibro=null, _wbMapa=null;
+
+/* ------------------------------------------------------------
+   Guardado. localStorage tiene un tope de ~5 MB y un libro de campo grande
+   lo puede pasar: el guardado fallaba en silencio y al reabrir
+   la app en el campo los archivos ya no estaban. IndexedDB aguanta cientos
+   de MB. localStorage queda solo como respaldo y para migrar datos viejos.
+   ------------------------------------------------------------ */
+// Base propia: lo de esta app no se mezcla con la app de siempre.
+const LS='siembraCruzas_v1';
+const IDB_NOMBRE='siembraCruzas', IDB_TABLA='kv';
+const K_INDICE='siembras', K_ACTIVA='activa', kSiembra=id=>'s:'+id;
+let _idb=null;
+function abrirIdb(){
+  if(_idb) return _idb;
+  _idb = new Promise((res,rej)=>{
+    if(!('indexedDB' in window)) return rej(new Error('sin IndexedDB'));
+    const r=indexedDB.open(IDB_NOMBRE,1);
+    r.onupgradeneeded=()=>r.result.createObjectStore(IDB_TABLA);
+    r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error);
+  });
+  _idb.catch(()=>{ _idb=null; });
+  return _idb;
+}
+async function idbPut(k,v){ const db=await abrirIdb();
+  return new Promise((res,rej)=>{ const tx=db.transaction(IDB_TABLA,'readwrite');
+    tx.objectStore(IDB_TABLA).put(v,k); tx.oncomplete=()=>res(); tx.onerror=()=>rej(tx.error); tx.onabort=()=>rej(tx.error); }); }
+async function idbGet(k){ const db=await abrirIdb();
+  return new Promise((res,rej)=>{ const r=db.transaction(IDB_TABLA).objectStore(IDB_TABLA).get(k);
+    r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error); }); }
+async function idbDel(k){ try{ const db=await abrirIdb();
+  await new Promise(res=>{ const tx=db.transaction(IDB_TABLA,'readwrite'); tx.objectStore(IDB_TABLA).delete(k); tx.oncomplete=res; tx.onerror=res; }); }catch(e){} }
+
+function paquete(){
+  return {libro,mapa,historial, sembrados:[...sembrados], errores:[...errores],
+          saltados:[...saltados], fase,
+          modo, locSel, campo, zoom, tab:tabActual, guardadoEn:Date.now()};
+}
+function nuevoId(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
+// Resumen de la siembra para la lista de siembras guardadas.
+function resumenSiembra(){
+  const total=mapa?mapa.plots.length:0;
+  const hechos=mapa?[...sembrados.keys()].filter(k=>idxPlotMapa.has(k)).length:0;
+  const nombre = mapa ? [mapa.estudio, mapa.loc].filter(Boolean).join(' · ') : 'Siembra nueva (sin mapa)';
+  const tipo = !mapa ? '' : hayRoles() ? 'Cross' : 'Self / sin rol';
+  let detalle='';
+  if(mapa && hayRoles()){
+    const m=mapa.plots.filter(p=>rolDe(p)==='macho'), h=mapa.plots.filter(p=>rolDe(p)==='hembra');
+    detalle=`machos ${m.filter(p=>sembrados.has(p.key)).length}/${m.length} · hembras ${h.filter(p=>sembrados.has(p.key)).length}/${h.length}`;
+  }
+  return {id:siembraId, nombre, tipo, total, hechos, detalle, fase, saltados:saltados.size, act:Date.now()};
+}
+async function leerIndice(){ try{ const x=await idbGet(K_INDICE); return Array.isArray(x)?x:[]; }catch(e){ return []; } }
+let _guardarTimer=null, guardadoOk=true;
+// Se agrupan los guardados: cada escaneo llama a guardar() varias veces.
+function guardar(){ clearTimeout(_guardarTimer); _guardarTimer=setTimeout(guardarYa,250); }
+async function guardarYa(){
+  clearTimeout(_guardarTimer);
+  if(!siembraId) siembraId=nuevoId();
+  const d=paquete();
+  try{
+    await idbPut(kSiembra(siembraId),d);
+    const ind=(await leerIndice()).filter(x=>x.id!==siembraId);
+    ind.unshift(resumenSiembra());
+    await idbPut(K_INDICE,ind); await idbPut(K_ACTIVA,siembraId);
+    guardadoOk=true;
+  }catch(e){ guardadoOk=false; log('NO SE PUDO GUARDAR:', e.message); }
+  chipRed(); pintarSiembras();
+}
+async function restaurar(){
+  try{
+    let d=null;
+    try{
+      siembraId=await idbGet(K_ACTIVA)||null;
+      if(!siembraId){ const ind=await leerIndice(); if(ind.length) siembraId=ind[0].id; }
+      if(siembraId) d=await idbGet(kSiembra(siembraId));
+    }catch(e){ log('IndexedDB no disponible:', e.message); }
+    if(!siembraId) siembraId=nuevoId();
+    pintarSiembras();
+    if(!d) return;
+    fase=['todo','macho','hembra'].includes(d.fase)?d.fase:'todo';
+    saltados=new Set(d.saltados||[]);
+    libro=d.libro||null; mapa=d.mapa||null;
+    historial=d.historial||[]; sembrados=new Map(d.sembrados||[]);
+    errores=new Set(d.errores||[]); modo='secuencia'; locSel=d.locSel||'';
+    campo=false; zoom=(d.zoom==null?1:d.zoom); tabGuardada=d.tab||'';
+    if(libro){ reindexarLibro(); mostrarMapeo('libro'); mostrarLocalidades(); estadoLibro(); }
+    if(mapa){ reindexarMapa(); estadoMapa(); }
+    if(libro&&mapa) cruzar(true);
+    aplicarVista(); pintarMapa(); pintarHistorial(); aplicarModo(); revisarListo(); habilitarEscaneo(); chipArchivos();
+  }catch(e){ log('Error al restaurar:', e.message); }
+}
+
+/* ============================================================
+   EXCEL
+   ============================================================ */
+function leerWb(file, cb){
+  const fr=new FileReader();
+  fr.onload=e=>{ try{ cb(XLSX.read(new Uint8Array(e.target.result),{type:'array'})); }
+                 catch(err){ cb(null,err); } };
+  fr.readAsArrayBuffer(file);
+}
+function hojaAFilas(wb,nombre){
+  const ws=wb.Sheets[nombre];
+  const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:'',blankrows:true,raw:false});
+  return expandirMerges(ws,rows);
+}
+// !merges usa coordenadas absolutas; sheet_to_json indexa relativo a !ref.
+function expandirMerges(ws,rows){
+  const merges=(ws&&ws['!merges'])||[]; if(!merges.length) return rows;
+  const ref=ws['!ref']?XLSX.utils.decode_range(ws['!ref']):{s:{r:0,c:0}};
+  const rO=ref.s.r, cO=ref.s.c;
+  merges.forEach(m=>{
+    const r0=m.s.r-rO,c0=m.s.c-cO,r1=m.e.r-rO,c1=m.e.c-cO;
+    const v=(rows[r0]||[])[c0]; if(v===undefined||v==='') return;
+    for(let r=r0;r<=r1;r++){ if(!rows[r]) continue;
+      for(let c=c0;c<=c1;c++){ if(r===r0&&c===c0) continue; rows[r][c]=v; } }
+  });
+  return rows;
+}
+
+/* ============================================================
+   TABLAS CON ENCABEZADO (libro de campo)
+   ============================================================ */
+const ALIAS_LIBRO = {
+  obs:   ['obsunitid','observationunitdbid','observationunitid','obsunit','obsunitdbid','observationunit','obsuid','plotid'],
+  gid:   ['gid','germplasmdbid','germplasmid'],
+  desig: ['designation','preferredname','designacion','germplasmname','entryname','nombre'],
+  entry: ['entryno','entry','entrynumber','entrada','entryid'],
+  plot:  ['plotcode','codigoplot'],
+  plotno:['plotno','plotnumber','plot','plotnumero'],
+  rep:   ['repno','rep','replicate','replica','repeticion'],
+  rol:   ['entrytype','rol','role','tipo','parentrole'],
+  loc:   ['locationname','location','localidad','sitio','locationabbr','site','env','environment'],
+  inst:  ['trialinstance','instance','instancia','trialinstancenumber','instanceno'],
+  faja:  ['faja','range','rangeno','rango','fieldmaprange'],
+  surco: ['surco','col','colno','column','columnno','fieldmapcolumn','columna','row','rowno']
+};
+function detectarHeader(rows, alias){
+  let mejor=-1, mejorPts=0;
+  const lim=Math.min(rows.length,40);
+  for(let r=0;r<lim;r++){
+    const row=rows[r]||[]; let pts=0; const vistos=new Set();
+    row.forEach(v=>{ const h=normHdr(v); if(!h||vistos.has(h)) return; vistos.add(h);
+      for(const k in alias){ if(alias[k].includes(h)){ pts++; break; } } });
+    if(pts>mejorPts){ mejorPts=pts; mejor=r; }
+  }
+  if(mejor<0){ for(let r=0;r<lim;r++){ if((rows[r]||[]).filter(v=>String(v).trim()!=='').length>=3) return {fila:r,pts:0}; } }
+  return {fila:mejor<0?0:mejor, pts:mejorPts};
+}
+function autoMapear(headers, alias){
+  const cols={}, usados=new Set();
+  for(const k in alias){
+    const i=headers.findIndex((h,ix)=>!usados.has(ix)&&alias[k].includes(normHdr(h)));
+    if(i>=0){ cols[k]=i; usados.add(i); }
+  }
+  return cols;
+}
+function construirTabla(rows, alias){
+  const {fila,pts}=detectarHeader(rows,alias);
+  const headers=(rows[fila]||[]).map(h=>String(h==null?'':h).trim());
+  const cols=autoMapear(headers,alias);
+  const filasRaw=[];
+  for(let r=fila+1;r<rows.length;r++){
+    const row=rows[r]||[];
+    if(!row.some(v=>String(v).trim()!=='')) continue;
+    filasRaw.push(row.map(v=>String(v==null?'':v).trim()));
+  }
+  return {headers,cols,filasRaw,filaHdr:fila,pts,filas:[]};
+}
+function materializar(tabla, alias){
+  const c=tabla.cols;
+  tabla.filas = tabla.filasRaw.map(row=>{
+    const o={};
+    for(const k in alias) o[k] = c[k]!=null ? (row[c[k]]||'') : '';
+    return o;
+  });
+  return tabla;
+}
+
+/* ---- LIBRO ---- */
+function materializarLibro(){
+  materializar(libro, ALIAS_LIBRO);
+  libro.filas = libro.filas.filter(f=>f.obs||f.plot||f.plotno);
+  reindexarLibro();
+}
+function localidadesLibro(){
+  const m=new Map();
+  (libro.filas||[]).forEach(f=>{
+    const etq = (f.loc||'') + (f.inst?(f.loc?' · inst '+f.inst:'inst '+f.inst):'');
+    const k = etq || '(sin localidad)';
+    m.set(k,(m.get(k)||0)+1);
+  });
+  return m;
+}
+function filasActivas(){
+  if(!libro) return [];
+  if(!locSel || locSel==='__todas__') return libro.filas;
+  return libro.filas.filter(f=>{
+    const etq=(f.loc||'')+(f.inst?(f.loc?' · inst '+f.inst:'inst '+f.inst):'');
+    return (etq||'(sin localidad)')===locSel;
+  });
+}
+function reindexarLibro(){
+  idxObs=new Map(); idxPlotLibro=new Map(); idxObsTodas=new Map();
+  (libro&&libro.filas||[]).forEach(f=>indexar(idxObsTodas, f.obs, f));
+  filasActivas().forEach(f=>{
+    indexar(idxObs, f.obs, f);
+    indexar(idxPlotLibro, f.plot, f); indexar(idxPlotLibro, f.plotno, f);
+  });
+}
+function mostrarLocalidades(){
+  if(!libro) return;
+  const m=localidadesLibro();
+  const wrap=$('locWrap'), sel=$('selLoc');
+  if(m.size<=1){ wrap.style.display='none'; locSel=''; return; }
+  wrap.style.display='';
+  const opciones=[...m.entries()].sort((a,b)=>b[1]-a[1]);
+  // preselección: la que coincida con el Field Location del mapa
+  if(!locSel && mapa && mapa.loc){
+    const objetivo=normLocal(mapa.loc);
+    const hit=opciones.find(([k])=>normLocal(k.split(' · ')[0])===objetivo);
+    if(hit) locSel=hit[0];
+  }
+  if(!locSel && mapa && mapa.instancia){
+    const hit=opciones.find(([k])=>k.includes('inst '+mapa.instancia));
+    if(hit) locSel=hit[0];
+  }
+  sel.innerHTML = `<option value="__todas__">Todas (${libro.filas.length} filas)</option>` +
+    opciones.map(([k,n])=>`<option value="${esc(k)}" ${k===locSel?'selected':''}>${esc(k)} — ${n} filas</option>`).join('');
+  if(!locSel) sel.value='__todas__';
+  sel.onchange=()=>{ locSel=sel.value; reindexarLibro(); estadoLibro(); if(mapa) cruzar(true); guardar(); };
+}
+function estadoLibro(){
+  if(!libro) return;
+  const n=filasActivas().length, tot=libro.filas.length;
+  const falta=[];
+  if(libro.cols.obs==null) falta.push('OBS_UNIT_ID');
+  if(libro.cols.plot==null && libro.cols.plotno==null) falta.push('PLOT_CODE o PLOT_NO');
+  $('statusLibro').innerHTML = tot
+    ? `<span class="${falta.length?'hl-bad':'hl-ok'}">${n}${n!==tot?' de '+tot:''} filas activas.</span>` +
+      (falta.length?` <span class="hl-bad">Falta asignar: ${falta.join(', ')}</span>`:'')
+    : '<span class="hl-bad">No se leyeron filas. Revisa la hoja o el mapeo de columnas.</span>';
+  revisarListo();
+}
+
+/* ---- LOTES ---- */
+
+/* ---- mapeo manual de columnas ---- */
+const ETQ_LIBRO={obs:'OBS_UNIT_ID *',gid:'GID',desig:'Designation',entry:'Entry',
+  plot:'PLOT_CODE',plotno:'PLOT_NO',rep:'Rep',rol:'Rol',loc:'Localidad',inst:'Instancia',faja:'Faja',surco:'Surco'};
+function mostrarMapeo(cual){
+  const t = libro; if(!t) return;
+  const etq = ETQ_LIBRO;
+  const cont = $('mapeoLibro');
+  cont.innerHTML = Object.keys(etq).map(k=>{
+    const opts=['<option value="">(ninguna)</option>'].concat(
+      t.headers.map((h,i)=>`<option value="${i}" ${t.cols[k]===i?'selected':''}>${esc(h||('col '+(i+1)))}</option>`)).join('');
+    return `<div><label>${etq[k]}</label><select data-col="${k}">${opts}</select></div>`;
+  }).join('');
+  cont.querySelectorAll('select').forEach(sel=>{
+    sel.onchange=()=>{
+      const k=sel.dataset.col;
+      if(sel.value==='') delete t.cols[k]; else t.cols[k]=parseInt(sel.value,10);
+      materializarLibro(); mostrarLocalidades(); estadoLibro();
+      if(libro&&mapa) cruzar(true);
+      guardar();
+    };
+  });
+}
+
+/* ============================================================
+   MAPA
+   ============================================================ */
+// Extrae pares "Etiqueta: Valor" en cualquier orden y en una o varias líneas.
+// Cubre "Plot:X GID:Y Role:Z Entry:W" (Cross), "Plot Code:X Plot No:Y ..."
+// (Backcross), "PlotCod: X GID: Y Entry: Z Plot No: W" (Self) y
+// "PLOT_CODE: X GID: Y FAJA: F SURCO: S ROLE: R" (Cross 2026C). Las etiquetas
+// se normalizan sin espacios, guiones bajos ni acentos, así que PlotCod /
+// Plot Code / PLOT_CODE caen todas en la misma llave.
+const ETQ_CELDA = {
+  plot:   ['plotcode','plotcod','plot','codigoplot','codplot','codigo'],
+  plotno: ['plotno','plotnumber','plotnum','numeroplot','noplot'],
+  gid:    ['gid','germplasmid'],
+  entry:  ['entry','entryno','entrynumber','entrada'],
+  rol:    ['role','rol','entrytype','tipo'],
+  rep:    ['rep','repno','replicate','replica','repeticion'],
+  // Solo para comparar: la posición la manda la cuadrícula del mapa.
+  faja:   ['faja','range','rango'],
+  surco:  ['surco','row','columna']
+};
+function etqCelda(k){ return String(k).toLowerCase().normalize('NFD')
+  .replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]/g,''); }
+function parseCeldaMapa(raw){
+  if(raw==null) return null;
+  const text=String(raw).trim(); if(!text) return null;
+  const pares={};
+  const rx=/([A-Za-zÁÉÍÓÚáéíóúñÑ][A-Za-zÁÉÍÓÚáéíóúñÑ_\s]{0,20}?):\s*(\S+)/g;
+  let m; while((m=rx.exec(text))!==null) pares[etqCelda(m[1])]=m[2].trim();
+  const val=k=>{ for(const a of ETQ_CELDA[k]) if(pares[a]!=null) return pares[a]; return ''; };
+  const plot=val('plot');
+  // Algunos mapas mezclan "Plot: 68" con "Entry 14" y "Rep 2" sin dos puntos.
+  const sinDosPuntos=k=>{ const m=text.match(new RegExp('(?:^|[\\s|;,])'+k+'(?:\\s*no\\.?)?[\\s#\\-]+(\\d+)\\b','i')); return m?m[1]:''; };
+  if(plot) return {plot, plotNo:val('plotno'), entry:val('entry')||sinDosPuntos('entry'),
+                   gid:val('gid'), rol:val('rol'), rep:val('rep')||sinDosPuntos('rep'),
+                   fajaTxt:val('faja'), surcoTxt:val('surco')};
+  // Formato Finca / Registro / Screening: "Plot-72 \n Entry 21 \n Rep 2"
+  // y exportación directa de BMS: "02_REGISTRO_2026_C-66 \n Entry 20 \n Rep 3"
+  // (nombre del estudio, guion y número de plot).
+  let p2=null,e2='',r2='',pEstudio=null;
+  text.split(/\r?\n/).map(l=>l.trim()).filter(Boolean).forEach(l=>{
+    let mm;
+    if((mm=l.match(/^Plot[-:\s]*(\S+)/i))) p2=mm[1];
+    else if((mm=l.match(/^Entry[-:\s]*(\S+)/i))) e2=mm[1];
+    else if((mm=l.match(/^Rep[-:\s]*(\S+)/i))) r2=mm[1];
+    else if(!pEstudio && (mm=l.match(/^\S.*?-\s*(\d+)$/))) pEstudio=mm[1];
+  });
+  if(p2) return {plot:p2, plotNo:p2, entry:e2, gid:'', rol:'', rep:r2};
+  // El número pegado al estudio solo cuenta si la celda trae Entry: así
+  // rótulos como "Column 1" o "Range 6" no se toman por plots.
+  if(pEstudio && e2) return {plot:pEstudio, plotNo:pEstudio, entry:e2, gid:'', rol:'', rep:r2};
+  return null;
+}
+const RX_COLHDR=/^\s*(\d+)\s*(UP|DOWN|ARRIBA|ABAJO)?\s*$/i;
+const RX_HDRLBL=/^(rows?|surcos?|row\s*\\\s*surco|range|faja)s?\s*$/i;
+
+function parseGridMapa(rows){
+  // Candidatos: filas con >=3 celdas "1","2 DOWN",... numeradas 1..N crecientes.
+  // El requisito de empezar en 1 descarta la tablita "Selected Studies" de arriba.
+  const cands=[];
+  for(let r=0;r<rows.length;r++){
+    const row=rows[r]||[]; const hits=[],nums=[];
+    for(let c=0;c<row.length;c++){
+      const m=String(row[c]??'').match(RX_COLHDR);
+      if(m){ hits.push(c); nums.push(parseInt(m[1],10)); }
+    }
+    if(hits.length<3||nums[0]!==1) continue;
+    let ok=true; for(let i=1;i<nums.length;i++) if(nums[i]<=nums[i-1]) ok=false;
+    if(ok) cands.push({r,hits,nums});
+  }
+  if(!cands.length) return null;
+
+  for(const cand of cands){
+    const colsIdx=cand.hits, lblCol=Math.max(0,colsIdx[0]-1);
+    const fajas=[]; let vacias=0;
+    for(let r=cand.r+1;r<rows.length;r++){
+      const row=rows[r]||[];
+      const lbl=String(row[lblCol]??'').trim();
+      const celdas=colsIdx.map(c=>parseCeldaMapa(row[c]));
+      if(!celdas.some(Boolean)){
+        // Una faja puede venir rotulada pero vacía (ej. "Faja 10" sin plots
+        // arriba de la cuadrícula), así que no se corta al primer hueco.
+        if(lbl&&RX_HDRLBL.test(lbl)&&fajas.length) break;  // encabezado de cierre
+        if(++vacias>=3&&fajas.length) break;               // fin real
+        continue;
+      }
+      vacias=0;
+      if(!lbl) continue;
+      fajas.push({label:lbl, faja:numFaja(lbl), dir:dirFaja(lbl),
+                  plots:agruparPlots(celdas,cand.nums)});
+    }
+    if(fajas.length) return {hdrFila:cand.r, lblCol, surcos:cand.nums, fajas};
+  }
+  return null;
+}
+// Un plot puede ocupar varios surcos (celdas combinadas: "Surcos per Plot: 4").
+// Al expandir los merges el mismo valor queda repetido, así que se agrupan las
+// celdas consecutivas iguales en un solo plot con su rango de surcos.
+function agruparPlots(celdas, surcos){
+  const out=[];
+  let act=null;
+  celdas.forEach((cel,i)=>{
+    const s=surcos[i];
+    if(!cel){ act=null; return; }
+    const k=normLoose(cel.plot);
+    if(act && act.key===k){ act.surcoFin=s; act.span++; return; }
+    act={key:k, plot:cel.plot, plotNo:cel.plotNo||cel.plot, entry:cel.entry, gid:cel.gid,
+         rol:cel.rol, rep:cel.rep, surcoIni:s, surcoFin:s, span:1,
+         fajaTxt:cel.fajaTxt||'', surcoTxt:cel.surcoTxt||''};
+    out.push(act);
+  });
+  return out;
+}
+function numFaja(l){ const m=String(l).match(/(\d+)/); return m?parseInt(m[1],10):null; }
+function dirFaja(l){
+  const s=String(l);
+  if(/←|<-|<=/.test(s)) return 'izq';
+  if(/→|->|=>/.test(s)) return 'der';
+  return null;
+}
+// El valor puede estar varias columnas a la derecha (celdas combinadas); se
+// salta la propia etiqueta repetida y cualquier otra etiqueta conocida.
+const ETIQUETAS=['field location','field name','block name','block capacity','rows per plot',
+  'surcos per plot','columns','starting coordinates','plot layout order',
+  'row capacity of planting machine','study','environment','order','# of entries','# of reps','plots needed'];
+function etiquetaSuelta(rows,etiqueta,maxCols){
+  maxCols=maxCols||14; const obj=etiqueta.toLowerCase();
+  for(let r=0;r<rows.length;r++){
+    const row=rows[r]||[];
+    for(let c=0;c<row.length;c++){
+      if(String(row[c]??'').trim().toLowerCase()!==obj) continue;
+      for(let cc=c+1;cc<Math.min(row.length,c+1+maxCols);cc++){
+        const v=String(row[cc]??'').trim(); if(!v) continue;
+        const vl=v.toLowerCase();
+        if(vl===obj) continue;                 // etiqueta repetida por el merge
+        if(ETIQUETAS.includes(vl)) return '';  // llegó a la siguiente etiqueta: venía vacía
+        return v;
+      }
+    }
+  }
+  return '';
+}
+// En "Selected Studies" los valores van DEBAJO de los encabezados.
+function valorBajoHeader(rows, nombre){
+  const obj=nombre.toLowerCase();
+  for(let r=0;r<rows.length-1;r++){
+    const row=rows[r]||[];
+    const i=row.findIndex(v=>String(v??'').trim().toLowerCase()===obj);
+    if(i<0) continue;
+    for(let rr=r+1;rr<Math.min(rows.length,r+8);rr++){
+      const v=String((rows[rr]||[])[i]??'').trim();
+      if(v && v.toLowerCase()!==obj) return v;
+    }
+  }
+  return '';
+}
+function numPlot(p){ const m=String(p).match(/(\d+)/); return m?parseInt(m[1],10):Number.MAX_SAFE_INTEGER; }
+
+function construirMapa(rows, hoja, resumen){
+  const g=parseGridMapa(rows); if(!g) return null;
+  // Los datos generales pueden venir en la misma hoja del mapa o, en la
+  // exportación directa de BMS, solo en la hoja SUMMARY.
+  const R=resumen||[];
+  const bajo=k=>valorBajoHeader(rows,k)||valorBajoHeader(R,k)||'';
+  const suelta=k=>etiquetaSuelta(rows,k)||etiquetaSuelta(R,k)||'';
+  const estudio=bajo('study');
+  const instancia=bajo('environment');
+  const loc=suelta('field location');
+  const spp=suelta('surcos per plot')||suelta('rows per plot');
+
+  const inicioTxt=suelta('starting coordinates');
+  const ordenTxt=suelta('plot layout order');
+
+  const plots=[];
+  g.fajas.forEach(f=>f.plots.forEach(p=>{
+    plots.push(Object.assign({faja:f.faja},p));
+  }));
+
+  // Algunos mapas traen FAJA y SURCO escritos dentro de la celda. La posición
+  // en la cuadrícula es la que manda; si el texto no coincide, se avisa para
+  // que se revise el mapa antes de sembrar (puede ser un error al armarlo).
+  const difPos=[];
+  plots.forEach(p=>{
+    const fs=parseInt(p.fajaTxt,10), ss=parseInt(p.surcoTxt,10);
+    const malF = !isNaN(fs) && p.faja!=null && fs!==p.faja;
+    const malS = !isNaN(ss) && (ss<p.surcoIni || ss>p.surcoFin);
+    if(malF||malS) difPos.push({plot:p.plot, faja:p.faja, surco:p.surcoIni, fajaTxt:p.fajaTxt, surcoTxt:p.surcoTxt});
+  });
+
+  const m={estudio, instancia, loc, hoja, surcosPorPlot:spp, inicio:inicioTxt, layout:ordenTxt,
+           surcos:g.surcos, fajas:g.fajas, plots, orden:[], difPos};
+  ordenarMapa(m);
+  return m;
+}
+
+// ORDEN DE SIEMBRA: lo manda la posición de la faja, no la numeración de los
+// plots. Serpentín: la faja de arranque va en el sentido de la columna inicial
+// y cada faja siguiente regresa en sentido contrario, como avanza la sembradora.
+// Se toma de "Starting Coordinates" y "Plot Layout Order" del mapa de BMS si
+// vienen; si no, arranca en el surco 1 de la faja más baja. Una flecha en el
+// rótulo de la faja (→ / ←) manda sobre todo lo demás.
+// Se recalcula cada vez que se abre la app (reindexarMapa): un mapa cargado con
+// una versión anterior toma la regla vigente sin tener que volver a cargarlo.
+function ordenarMapa(m){
+  if(!m || !m.fajas) return;
+  const inicioTxt=m.inicio||'', ordenTxt=String(m.layout||'').toLowerCase();
+  const serpentin = !ordenTxt || /serp/.test(ordenTxt);
+  const mCol=inicioTxt.match(/col(?:umn|umna)?\s*(\d+)/i), mRan=inicioTxt.match(/range\s*(\d+)|faja\s*(\d+)/i);
+  const colIni=mCol?parseInt(mCol[1],10):null;
+  const ranIni=mRan?parseInt(mRan[1]||mRan[2],10):null;
+  const nums=m.fajas.map(f=>f.faja).filter(n=>n!=null);
+  const fajaMin=nums.length?Math.min(...nums):1, fajaMax=nums.length?Math.max(...nums):1;
+  const desdeArriba = ranIni!=null && ranIni===fajaMax && fajaMax!==fajaMin;   // arranca en la faja más alta
+  const surcos=m.surcos||[];
+  const dirIni = (colIni!=null && surcos.length && colIni===surcos[surcos.length-1] && colIni!==surcos[0]) ? 'izq' : 'der';
+  const fajaIni = desdeArriba ? fajaMax : fajaMin;
+  m.fajas.forEach(f=>{
+    const flecha=dirFaja(f.label||'');
+    if(flecha){ f.dir=flecha; return; }
+    const paso = Math.abs((f.faja??fajaIni) - fajaIni);
+    f.dir = (!serpentin || paso%2===0) ? dirIni : (dirIni==='der'?'izq':'der');
+  });
+  const ordenPlots=[];
+  [...m.fajas].sort((a,b)=>desdeArriba?(b.faja??0)-(a.faja??0):(a.faja??0)-(b.faja??0)).forEach(f=>{
+    const ps = f.dir==='der' ? f.plots : [...f.plots].reverse();
+    ps.forEach(p=>ordenPlots.push(p.key));
+  });
+  m.orden=ordenPlots;
+}
+function reindexarMapa(){
+  ordenarMapa(mapa);
+  idxPlotMapa=new Map();
+  mapa.plots.forEach(p=>{
+    idxPlotMapa.set(p.key,p);
+    indexar(idxPlotMapa, p.plot, p); indexar(idxPlotMapa, p.plotNo, p);
+  });
+  orden=mapa.orden||[];
+}
+function avisoPosicion(){
+  const d=(mapa&&mapa.difPos)||[]; if(!d.length) return '';
+  const fajas=[...new Set(d.map(x=>x.faja))].sort((a,b)=>a-b);
+  const ej=d.slice(0,3).map(x=>`${esc(x.plot)} dice faja ${esc(x.fajaTxt||'?')}, surco ${esc(x.surcoTxt||'?')} y está en faja ${x.faja}, surco ${x.surco}`).join('; ');
+  return `<div class="alerta" style="margin-top:8px"><b>⚠ Revisa el mapa antes de sembrar.</b> En ${d.length} plots `+
+    `(faja${fajas.length>1?'s':''} ${fajas.join(', ')}) la faja o el surco escrito dentro de la celda no coincide con su lugar en la cuadrícula. `+
+    `La app usa el lugar en la cuadrícula. Ej.: ${ej}.</div>`;
+}
+function estadoMapa(){
+  if(!mapa) return;
+  $('statusMapa').innerHTML=`<span class="hl-ok">${mapa.plots.length} plots</span> · ${mapa.fajas.length} fajas · ${mapa.surcos.length} surcos` +
+    (mapa.surcosPorPlot?` · ${mapa.surcosPorPlot} surcos/plot`:'') +
+    (mapa.estudio?`<br><span class="mono">${esc(mapa.estudio)}</span>`:'') +
+    (mapa.loc?` · ${esc(mapa.loc)}`:'') + (mapa.instancia?` · inst ${esc(mapa.instancia)}`:'') +
+    avisoPosicion();
+  revisarListo();
+}
+
+/* ============================================================
+   CRUCE PREVIO
+   ============================================================ */
+function cruzar(silencioso){
+  if(!libro||!mapa) return;
+  const sinLibro=[], sinObs=[], sinGid=[], entryMal=[];
+  mapa.plots.forEach(p=>{
+    let f=null;
+    f = buscarEn(idxPlotLibro, p.plotNo) || buscarEn(idxPlotLibro, p.plot);
+    if(!f){ sinLibro.push(p.plot); p.libro=null; return; }
+    p.libro=f;
+    if(!f.obs) sinObs.push(p.plot);
+    if(!f.gid) sinGid.push(p.plot);
+    if(entryDistinto(p,f)) entryMal.push(`${p.plot} (mapa ${p.entry} / libro ${f.entry})`);
+  });
+  const total=mapa.plots.length, ok=total-sinLibro.length;
+  const problemas = sinLibro.length||sinObs.length||entryMal.length;
+  let h=`<div class="alerta ${problemas?'':'ok'}"><b>${ok} de ${total}</b> plots del mapa encontrados en el libro de campo`;
+  h += locSel && locSel!=='__todas__' ? ` (localidad: ${esc(locSel)}).` : '.';
+  if(sinLibro.length) h+=`<br><span class="hl-bad">Sin fila en el libro (${sinLibro.length}):</span> ${esc(sinLibro.slice(0,15).join(', '))}${sinLibro.length>15?'…':''}`;
+  if(sinObs.length)   h+=`<br><span class="hl-warn">Sin OBS_UNIT_ID (${sinObs.length}):</span> ${esc(sinObs.slice(0,15).join(', '))}${sinObs.length>15?'…':''}`;
+  if(sinGid.length)   h+=`<br><span class="hl-warn">Sin GID (${sinGid.length}):</span> ${esc(sinGid.slice(0,15).join(', '))}${sinGid.length>15?'…':''}`;
+  if(entryMal.length) h+=`<br><span class="hl-bad">Entry distinto entre mapa y libro (${entryMal.length}):</span> ${esc(entryMal.slice(0,8).join(', '))}${entryMal.length>8?'…':''}`+
+    `<br>Revisa que la hoja del mapa sea de la misma localidad que el libro. Esos plots van a salir INCORRECTO al escanear.`;
+  else if(mapa.plots.some(p=>p.entry)) h+=`<br>Entry: coincide en todos los plots entre mapa y libro.`;
+  h+='</div>';
+  $('cruceResumen').innerHTML=h;
+  if(!silencioso) log('Cruce:',ok,'/',total,'| sinLibro',sinLibro.length,'| sinGid',sinGid.length);
+  habilitarEscaneo(); pintarMapa(); guardar();
+}
+
+/* ============================================================
+   ESCANEO — la verificación es GID(lote) vs GID(plot)
+   ============================================================ */
+function revisarListo(){
+  const listo = libro&&libro.filas.length && mapa&&mapa.plots.length;
+  $('btnCruzar').disabled=!listo;
+}
+function habilitarEscaneo(){
+  if(!(libro&&mapa)) return;
+  $('scanObs').disabled=false; pintarPaso();
+  if($('verdict').textContent.startsWith('Carga')){ $('verdict').textContent='Escanea la etiqueta del plot'; }
+  // Una pistola lectora es un teclado: si ningún campo tiene el foco, lo que
+  // teclea se pierde y parece que la app "no hace nada".
+  if(document.activeElement===document.body) campoActivo().focus();
+}
+function campoActivo(){ return $('scanObs'); }
+
+// Teclas que llegan sin que ningún campo tenga el foco: se redirigen al campo
+// de escaneo que toca, sin perder el primer carácter.
+document.addEventListener('keydown', e=>{
+  const t=e.target;
+  if(t && (t.tagName==='INPUT'||t.tagName==='SELECT'||t.tagName==='TEXTAREA'||t.tagName==='BUTTON')) return;
+  if($('scanObs').disabled) return;
+  if(e.ctrlKey||e.altKey||e.metaKey) return;
+  const campo=campoActivo();
+  campo.focus();
+  if(e.key && e.key.length===1){ campo.value += e.key; e.preventDefault(); marcarTecla(campo); }
+});
+
+// Anti-rebote: 'keydown' y 'change' pueden disparar el mismo código dos veces.
+let _ult={obs:{v:'',t:0}, eti:{v:'',t:0}};
+function yaProcesado(cual,v){
+  const u=_ult[cual], ahora=Date.now();
+  if(u.v===v && ahora-u.t<700) return true;
+  u.v=v; u.t=ahora; return false;
+}
+function logLectura(campo, crudo){
+  const vis=String(crudo).replace(/\n/g,'\\n').replace(/\t/g,'\\t');
+  log(`[${campo}] cruda: "${vis}" (${String(crudo).length} car) → usada: "${normCode(crudo)}"`);
+}
+
+// Si la pistola no manda Enter ni Tab, se detecta la ráfaga de tecleo y se
+// envía sola cuando deja de llegar texto.
+const _raf={};
+function marcarTecla(campo){
+  const id=campo.id, ahora=Date.now();
+  const r=_raf[id]||(_raf[id]={ini:0,n:0,timer:null});
+  if(!r.n) r.ini=ahora;
+  r.n++;
+  clearTimeout(r.timer);
+  r.timer=setTimeout(()=>{
+    const chars=r.n, dur=Date.now()-r.ini;
+    r.n=0;
+    // ráfaga de pistola: >=4 caracteres a menos de 50 ms cada uno
+    if(chars>=4 && dur/chars<50) tomarObs();
+  }, 300);
+}
+['scanObs'].forEach(id=>{
+  $(id).addEventListener('input', ()=>marcarTecla($(id)));
+});
+// Rol del plot según el mapa (Cross trae Fem / Male; Self no trae rol).
+function rolDe(p){ const r=String((p&&p.rol)||'').trim().toLowerCase();
+  if(/^(m$|male|mach|masc)/.test(r)) return 'macho';
+  if(/^(f$|fem|hemb)/.test(r)) return 'hembra';
+  return ''; }
+function hayRoles(){ return !!(mapa && mapa.plots.some(p=>rolDe(p))); }
+// ¿Este plot se siembra en la fase elegida? Sin roles en el mapa, siempre sí.
+function enFase(k){
+  if(fase==='todo' || !hayRoles()) return true;
+  const p=idxPlotMapa.get(k); return !!p && rolDe(p)===fase;
+}
+// El serpentín de siempre, saltando lo que no toca hoy y lo que se dejó para después.
+function siguienteEsperado(){ for(const k of orden){ if(!sembrados.has(k) && !saltados.has(k) && enFase(k)) return k; } return null; }
+function textoFueraDeFase(pm){
+  const r=rolDe(pm);
+  return `Este plot es ${r==='macho'?'MACHO':'HEMBRA'} y hoy se siembran ${fase==='macho'?'solo machos':'solo hembras'}. `+
+         `Si corresponde, cambia «Qué se siembra hoy» arriba.`;
+}
+function peor(a,b){ const r={ok:0,warn:1,bad:2}; return r[b]>r[a]?b:a; }
+
+$('scanObs').addEventListener('keydown',e=>{ if(e.key==='Enter'||e.key==='Tab'){ e.preventDefault(); tomarObs(); }});
+$('scanObs').addEventListener('change',tomarObs);
+/* ------------------------------------------------------------
+   DOS ESCANEOS POR PLOT
+   1) La etiqueta que ya está puesta en el plot: se revisa contra libro,
+      mapa y orden. Si algo falla no se avanza (todavía no se abrió el sobre).
+   2) El sobre: tiene que ser idéntico a la etiqueta y pasa por todas las
+      revisiones de siempre. Se guarda un solo registro con los dos códigos.
+   ------------------------------------------------------------ */
+let pasoEti=null;   // {obs, pm, t} mientras se espera el sobre
+
+function tomarObs(){
+  const crudo=$('scanObs').value;
+  const v=normCode(crudo); if(!v){ $('scanObs').value=''; return; }
+  const cual = pasoEti ? 'obs' : 'eti';
+  if(yaProcesado(cual,v)){ $('scanObs').value=''; return; }
+  logLectura(pasoEti?'SOBRE':'ETIQUETA', crudo);
+  $('scanObs').value='';
+  if(pasoEti) leerSobre(v); else leerEtiqueta(v);
+}
+
+function leerEtiqueta(v){
+  const motivos=[];
+  const fila=buscarFila(v);
+  let pm=null;
+  if(!fila){
+    const otra=buscarEn(idxObsTodas, v);
+    if(otra){
+      const etq=(otra.loc||'')+(otra.inst?(otra.loc?' · inst '+otra.inst:'inst '+otra.inst):'');
+      motivos.push(`Esta etiqueta es de otra localidad: ${etq||'(sin localidad)'}, plot ${otra.plotno||otra.plot||'?'}.`);
+    } else motivos.push('Esta etiqueta no está en el libro de campo'+(locSel&&locSel!=='__todas__'?` de ${locSel}.`:'.'));
+  } else {
+    pm=buscarPlotMapa(fila);
+    if(!pm) motivos.push(`La etiqueta es del plot ${fila.plotno||fila.plot||'(sin número)'}, que no aparece en el mapa cargado.`);
+    else {
+      const ed=entryDistinto(pm,fila); if(ed) motivos.push(ed+' Revisa que el mapa y el libro sean de la misma localidad.');
+      const esp=siguienteEsperado();
+      if(!enFase(pm.key)) motivos.push(textoFueraDeFase(pm));
+      else if(sembrados.has(pm.key)) motivos.push(`El plot ${pm.plot} ya está sembrado.`);
+      else if(saltados.has(pm.key)) { /* plot saltado: se puede sembrar cuando llegue el sobre */ }
+      else if(esp && esp!==pm.key){
+        const pe=idxPlotMapa.get(esp);
+        motivos.push(`Esta etiqueta es del plot ${pm.plot} (faja ${pm.faja}), pero toca el plot ${pe?pe.plot:esp}`+
+          `${pe?` (faja ${pe.faja}, surco ${pe.surcoIni}${pe.span>1?'–'+pe.surcoFin:''})`:''}. Revisa en qué plot estás.`);
+      }
+    }
+  }
+  if(motivos.length){
+    // No se avanza ni se guarda: todavía no se ha sembrado nada.
+    const vd=$('verdict'); vd.className='verdict false';
+    vd.innerHTML='ETIQUETA NO VÁLIDA<small>'+esc(v)+'</small><small>'+motivos.map(esc).join('<br>')+'</small>';
+    if(navigator.vibrate) navigator.vibrate([70,60,70,60,70]);
+    beep('bad'); log('Etiqueta rechazada:', v, motivos.join(' '));
+    pintarPaso(); $('scanObs').focus(); return;
+  }
+  pasoEti={obs:v, fila, pm, t:Date.now()};
+  const vd=$('verdict'); vd.className='verdict paso';
+  vd.innerHTML=`ETIQUETA OK — AHORA EL SOBRE<small>plot ${esc(pm.plot)}${pm.entry?` &middot; entry ${esc(pm.entry)}`:''} &middot; faja ${esc(pm.faja)} &middot; surco ${esc(pm.surcoIni)}${pm.span>1?'–'+esc(pm.surcoFin):''}</small>`;
+  $('kvPlot').innerHTML=`<b>Etiqueta</b><span class="mono">${esc(v)}</span>`+
+    `<b>Plot</b><span class="mono">${esc(pm.plot)}</span>`+
+    `<b>Faja / Surco</b><span>${esc(pm.faja)} / ${esc(pm.surcoIni)}${pm.span>1?'–'+esc(pm.surcoFin):''}</span>`+
+    `<b>GID</b><span class="mono">${esc(fila.gid)||'—'}</span>`+
+    `<b>Designation</b><span>${esc(fila.desig)||'—'}</span>`+
+    `<b>Entry</b><span>${esc(pm.entry||fila.entry)||'—'}</span>`;
+  if(navigator.vibrate) navigator.vibrate(50);
+  beep('paso');
+  pintarPaso(); $('scanObs').focus();
+}
+
+function leerSobre(v){
+  const eti=pasoEti;
+  // Una pistola o la cámara a veces leen dos veces seguidas la misma etiqueta:
+  // eso no es el sobre.
+  // Mismo código, o el mismo registro del libro (por si uno se escribió a mano
+  // con otras mayúsculas). Dos códigos distintos nunca caen en el mismo registro.
+  const f2=buscarFila(v);
+  const igual = v===eti.obs || (!!f2 && f2===eti.fila);
+  if(igual && Date.now()-eti.t<1500){
+    $('subObs').textContent='Se leyó otra vez la etiqueta. Escanea el sobre.'; $('scanObs').focus(); return;
+  }
+  pasoEti=null;
+  if(igual){ evaluar(v, eti.obs); return; }
+
+  // No coincide: el plot de la etiqueta queda en rojo.
+  const gps=gpsParaRegistro();
+  if(gps) gps.finca=evaluarFinca(gps);
+  const motivos=[`El sobre no corresponde a la etiqueta del plot. Etiqueta ${eti.obs} (plot ${eti.pm.plot}) / sobre ${v}.`];
+  if(f2){ const p2=buscarPlotMapa(f2); motivos.push(`Ese sobre es del plot ${p2?p2.plot:(f2.plotno||f2.plot||'?')}${p2?` (faja ${p2.faja})`:''}.`); }
+  else if(buscarEn(idxObsTodas,v)) motivos.push('Ese sobre es de otra localidad.');
+  else motivos.push('Ese sobre no está en el libro de campo.');
+  terminar(v, eti.pm.libro||buscarFila(eti.obs), eti.pm, 'bad', motivos, gps, eti.obs);
+}
+
+function cancelarPaso(){
+  if(!pasoEti) return;
+  log('Etiqueta descartada:', pasoEti.obs);
+  pasoEti=null;
+  const vd=$('verdict'); vd.className='verdict'; vd.textContent='Escanea la etiqueta del plot';
+  pintarPaso(); $('scanObs').focus();
+}
+
+function pintarPaso(){
+  const bar=$('pasoBar'); if(!bar) return;
+  const e1 = pasoEti
+    ? `<div class="pp hecho">✓ 1 · Etiqueta<small class="mono">${esc(pasoEti.obs)} · plot ${esc(pasoEti.pm.plot)}</small></div>`
+    : `<div class="pp on">1 · Etiqueta del plot<small>Escanea la etiqueta puesta en el plot</small></div>`;
+  const e2 = pasoEti
+    ? `<div class="pp on">2 · Sobre<small>Debe ser el mismo código de la etiqueta</small></div>`
+    : `<div class="pp">2 · Sobre<small>Después de la etiqueta</small></div>`;
+  bar.innerHTML = e1 + e2 + (pasoEti?'<button class="btn-peligro chico" id="btnPasoCancel" type="button">Volver a escanear etiqueta</button>':'');
+  if(pasoEti) $('btnPasoCancel').onclick=cancelarPaso;
+  $('lblScan').textContent = pasoEti ? '2 · Sobre' : '1 · Etiqueta del plot';
+  const inp=$('scanObs');
+  if(!inp.disabled) inp.placeholder = pasoEti ? 'Escanea el OBS UNIT ID del sobre' : 'Escanea la etiqueta del plot';
+}
+
+function buscarFila(cod){ return buscarEn(idxObs, cod); }
+function buscarPlotMapa(fila){
+  if(!fila) return null;
+  const r = buscarEn(idxPlotMapa, fila.plotno) || buscarEn(idxPlotMapa, fila.plot);
+  if(r) return r;
+  return null;
+}
+
+function evaluar(obsRaw, etiqueta){
+  const obs=normCode(obsRaw);
+  const motivos=[]; let nivel='ok';
+  const gps = gpsParaRegistro();
+
+  const fila = buscarFila(obs);
+  if(!fila){
+    // ¿Existe en el libro pero en otra localidad? Pasa cuando el mapa
+    // cargado no es el de la finca donde se está sembrando.
+    const otra = buscarEn(idxObsTodas, obs);
+    if(otra){
+      const etq=(otra.loc||'')+(otra.inst?(otra.loc?' · inst '+otra.inst:'inst '+otra.inst):'');
+      motivos.push(`Ese OBS_UNIT_ID es de otra localidad: ${etq||'(sin localidad)'}, plot ${otra.plotno||otra.plot||'?'}.`);
+    } else {
+      motivos.push('El OBS_UNIT_ID no está en el libro de campo' +
+                   (locSel&&locSel!=='__todas__'?` de ${locSel}.`:'.'));
+    }
+    if(gps) gps.finca = evaluarFinca(gps);
+    terminar(obs,null,null,'bad',motivos,gps,etiqueta); return;
+  }
+
+  const pm = buscarPlotMapa(fila);
+  if(!pm){
+    nivel='bad';
+    motivos.push(`Está en el libro, pero el plot ${fila.plotno||fila.plot||'(sin número)'} no aparece en el mapa cargado.`);
+  } else {
+    if(pm.gid && fila.gid && normGid(pm.gid)!==normGid(fila.gid)){
+      nivel='bad'; motivos.push(`El mapa y el libro no coinciden en GID para ese plot: mapa ${pm.gid} / libro ${fila.gid}.`);
+    }
+    // El Entry es lo que está escrito en el mapa de campo: si no coincide con el
+    // del libro, el sobre no va en ese lugar (o el mapa/libro cargado es otro).
+    const ed=entryDistinto(pm,fila);
+    if(ed){ nivel='bad'; motivos.push(ed); }
+    if(sembrados.has(pm.key)){ nivel=peor(nivel,'warn'); motivos.push('Este plot ya se había escaneado.'); }
+    if(!enFase(pm.key)){ nivel='bad'; motivos.push(textoFueraDeFase(pm)); }
+    else if(modo==='secuencia' && !saltados.has(pm.key)){
+      const esp=siguienteEsperado();
+      if(esp && esp!==pm.key && !sembrados.has(pm.key)){
+        const pe=idxPlotMapa.get(esp);
+        nivel='bad';
+        motivos.push(`Fuera de orden. Toca el plot ${pe?pe.plot:esp}${pe?` (faja ${pe.faja}, surco ${pe.surcoIni}${pe.span>1?'–'+pe.surcoFin:''})`:''}.`);
+      }
+    }
+  }
+  if(gps) gps.finca = evaluarFinca(gps);   // solo rastro: no toca el veredicto
+  if(!gps) motivos.push('Sin ubicación GPS en este escaneo.');
+  else if(gps.edad>60) motivos.push(`Ubicación de hace ${gps.edad} s: el GPS no se ha actualizado.`);
+  terminar(obs,fila,pm,nivel,motivos,gps,etiqueta);
+}
+
+function terminar(obs,fila,pm,nivel,motivos,gps,etiqueta){
+  const v=$('verdict');
+  v.className='verdict '+(nivel==='ok'?'true':nivel==='warn'?'warn':'false');
+  const titulo = nivel==='ok'?'CORRECTO':nivel==='warn'?'REVISAR':'INCORRECTO';
+  const sitio = pm?`plot ${pm.plot}${pm.entry?` &middot; entry ${esc(pm.entry)}`:''} &middot; faja ${pm.faja} &middot; surco ${pm.surcoIni}${pm.span>1?'–'+pm.surcoFin:''}`:'';
+  v.innerHTML = titulo + (sitio?`<small>${sitio}</small>`:'') +
+                (motivos.length?`<small>${motivos.map(esc).join('<br>')}</small>`:'');
+
+  $('kvPlot').innerHTML=`<b>Sobre</b><span class="mono">${esc(obs)||'—'}</span>`+
+    `<b>Etiqueta</b><span class="mono">${esc(etiqueta)||'—'}</span>`+
+    `<b>Plot</b><span class="mono">${esc(pm?pm.plot:(fila?(fila.plotno||fila.plot):''))||'—'}</span>`+
+    `<b>Faja / Surco</b><span>${pm?esc(pm.faja)+' / '+esc(pm.surcoIni)+(pm.span>1?'–'+esc(pm.surcoFin):''):'—'}</span>`+
+    `<b>GID</b><span class="mono">${esc(fila?fila.gid:'')||'—'}</span>`+
+    `<b>Designation</b><span>${esc(fila?fila.desig:'')||'—'}</span>`+
+    `<b>Entry</b><span>${esc(pm?pm.entry:(fila?fila.entry:''))||'—'}</span>`;
+  pintarGps(gps);
+
+  // Un escaneo incorrecto NO cuenta como sembrado: si contara, el puntero de
+  // secuencia se saltaría ese plot y el error quedaría enterrado.
+  if(pm){ if(nivel==='bad') errores.add(pm.key); else { sembrados.set(pm.key,'ok'); errores.delete(pm.key); saltados.delete(pm.key); } }
+
+  historial.unshift({uid:envioUid(), ts:Date.now(),
+    estudio:(mapa&&mapa.estudio)||'', loc:(mapa&&mapa.loc)||'',
+    fase: hayRoles()?FASE_TXT[fase]:'', rol: pm?rolDe(pm):'',
+    hora:new Date().toLocaleTimeString('es-GT'), fecha:new Date().toISOString().slice(0,10),
+    obs, etiqueta:etiqueta||'', gid:fila?fila.gid:'', desig:fila?fila.desig:'',
+    plot:pm?pm.plot:(fila?(fila.plotno||fila.plot):''), faja:pm?pm.faja:'',
+    surco:pm?(pm.surcoIni+(pm.span>1?'–'+pm.surcoFin:'')):'',
+    entry:pm?pm.entry:(fila?fila.entry:''),
+    lat:gps?gps.lat:null, lon:gps?gps.lon:null, acc:gps?gps.acc:null, gpsEdad:gps?gps.edad:null,
+    finca:(gps&&gps.finca)?gps.finca.nombre:'', distFinca:(gps&&gps.finca)?gps.finca.dist:null,
+    fueraFinca:(gps&&gps.finca)?gps.finca.fuera:null,
+    nivel, detalle:motivos.join(' ')});
+  envioEncolar(historial[0]);
+
+  if(navigator.vibrate) navigator.vibrate(nivel==='ok'?90:[70,60,70,60,70]);
+  beep(nivel);
+  pintarHistorial(); pintarMapa(); guardar();
+
+  $('scanObs').value=''; $('subObs').textContent='';
+  pintarPaso();
+  $('scanObs').focus();
+}
+
+let actx=null;
+function beep(nivel){
+  try{
+    actx = actx || new (window.AudioContext||window.webkitAudioContext)();
+    const notas = nivel==='paso'?[[1200,.06]] : nivel==='ok'?[[880,.12]] : nivel==='warn'?[[660,.12],[660,.12]] : [[220,.22],[180,.26]];
+    let t=actx.currentTime;
+    notas.forEach(([f,d])=>{
+      const o=actx.createOscillator(), g=actx.createGain();
+      o.frequency.value=f; o.type='square'; g.gain.value=.08;
+      o.connect(g); g.connect(actx.destination); o.start(t); o.stop(t+d); t+=d+.04;
+    });
+  }catch(e){}
+}
+
+/* ============================================================
+   MAPA EN PANTALLA — una columna por plot, no por surco
+   (una finca tiene 72 surcos pero solo 18 plots por faja)
+   ============================================================ */
+function pintarMapa(){
+  const cont=$('mapaGrid');
+  if(!mapa||!mapa.fajas.length){ cont.innerHTML='<span class="hint">Carga el mapa.</span>'; return; }
+  const maxP=Math.max(...mapa.fajas.map(f=>f.plots.length));
+  const cw = zoom===0?48:zoom===2?100:78;
+  cont.style.gridTemplateColumns=`${zoom===0?34:46}px repeat(${maxP}, minmax(${cw}px,1fr))`;
+  cont.style.minWidth=((zoom===0?34:46)+maxP*(cw+3))+'px';
+  const esperado=siguienteEsperado();
+
+  let html='';
+  const fajasOrd=[...mapa.fajas].sort((a,b)=>(b.faja??0)-(a.faja??0)); // faja alta arriba
+  fajasOrd.forEach(f=>{
+    const flecha = f.dir==='der' ? (volteado?'←':'→') : (volteado?'→':'←');
+    html+=`<div class="mrow-lbl"><span>F${f.faja??'?'}</span><span>${flecha}</span></div>`;
+    const ps = volteado ? [...f.plots].reverse() : f.plots;
+    ps.forEach(p=>{
+      const hecho=sembrados.get(p.key)==='ok', malo=errores.has(p.key);
+      const cls=['mcell'];
+      const rol=/mal|mach/i.test(p.rol)?'macho':/fem|hemb/i.test(p.rol)?'hembra':'';
+      if(rol) cls.push(rol);
+      if(hecho) cls.push('hecho','okmark');
+      if(malo) cls.push('badmark');
+      if(modo==='secuencia'&&p.key===esperado) cls.push('actual');
+      if(!hecho && !enFase(p.key)) cls.push('fuerafase');
+      if(!hecho && saltados.has(p.key)) cls.push('saltado');
+      const tick=malo?'✕':hecho?'✓':'';
+      html+=`<div class="${cls.join(' ')}"><span class="tick">${tick}</span>`+
+            `<span class="pc">${esc(p.plot)}</span>`+
+            `e${esc(p.entry||'—')}${p.rep?' r'+esc(p.rep):''}`+
+            `<span class="su"><br>s${esc(p.surcoIni)}${p.span>1?'–'+esc(p.surcoFin):''}</span></div>`;
+    });
+    for(let i=f.plots.length;i<maxP;i++) html+='<div class="mcell vacio"></div>';
+  });
+  cont.innerHTML=html;
+
+  const hechos=[...sembrados.keys()].filter(k=>idxPlotMapa.has(k)).length;
+  const pe=esperado?idxPlotMapa.get(esperado):null;
+  let cuenta=`${hechos} / ${mapa.plots.length} plots escaneados`;
+  if(hayRoles() && fase!=='todo'){
+    const deFase=mapa.plots.filter(p=>rolDe(p)===fase);
+    const nom=fase==='macho'?'Machos':'Hembras';
+    cuenta=`<b>${nom}:</b> ${deFase.filter(p=>sembrados.has(p.key)).length} / ${deFase.length} &nbsp;·&nbsp; total ${hechos} / ${mapa.plots.length}`;
+  }
+  if(saltados.size) cuenta+=` &nbsp;·&nbsp; saltados ${saltados.size}`;
+  const fin = !pe ? (hayRoles()&&fase!=='todo' ? ` &nbsp;|&nbsp; <b>✓ ${fase==='macho'?'Todos los machos':'Todas las hembras'} sembrados${saltados.size?' (faltan los saltados)':''}</b>`
+                                               : ` &nbsp;|&nbsp; <b>✓ Sin plots pendientes en el orden${saltados.size?' (faltan los saltados)':''}</b>`) : '';
+  $('progreso').innerHTML=cuenta+
+    (modo==='secuencia'&&pe?` &nbsp;|&nbsp; <b>Sigue:</b> plot <span class="mono">${esc(pe.plot)}</span> (faja ${pe.faja}, surco ${pe.surcoIni}${pe.span>1?'–'+pe.surcoFin:''})${rolDe(pe)?' · '+rolDe(pe):''}`:fin);
+  pintarFase();
+}
+// ---- Qué se siembra hoy (solo mapas con rol: Cross) -----------------------
+function pintarFase(){
+  const bar=$('faseBar'); if(!bar) return;
+  bar.hidden=!hayRoles();
+  bar.querySelectorAll('[data-fase]').forEach(b=>b.classList.toggle('on', b.dataset.fase===fase));
+  if($('btnSaltar')) $('btnSaltar').disabled=!siguienteEsperado();
+}
+document.querySelectorAll('#faseBar [data-fase]').forEach(b=>b.onclick=()=>{
+  if(fase===b.dataset.fase) return;
+  fase=b.dataset.fase; pasoEti=null;
+  log('Qué se siembra hoy:', FASE_TXT[fase]);
+  pintarPaso(); pintarMapa(); guardar();
+  const vd=$('verdict'); vd.className='verdict'; vd.textContent='Escanea la etiqueta del plot';
+});
+$('btnSaltar').onclick=()=>{
+  const k=siguienteEsperado(); if(!k) return;
+  const p=idxPlotMapa.get(k);
+  if(!confirm(`¿Saltar el plot ${p?p.plot:k}? Queda pendiente y se puede sembrar después: basta con escanear su etiqueta y su sobre.`)) return;
+  saltados.add(k); pasoEti=null; log('Plot saltado:', p?p.plot:k);
+  pintarPaso(); pintarMapa(); guardar();
+};
+
+// ---- Continuar una siembra de otro teléfono (CSV del historial) -----------
+function leerCsv(txt){
+  txt=String(txt).replace(/^\ufeff/,'');
+  const prim=txt.split(/\r?\n/)[0]||'';
+  const sep=(prim.split(';').length>=prim.split(',').length)?';':',';
+  const filas=[]; let fila=[], campoTxt='', comillas=false;
+  for(let i=0;i<txt.length;i++){
+    const ch=txt[i];
+    if(comillas){ if(ch==='"'){ if(txt[i+1]==='"'){ campoTxt+='"'; i++; } else comillas=false; } else campoTxt+=ch; continue; }
+    if(ch==='"') comillas=true;
+    else if(ch===sep){ fila.push(campoTxt); campoTxt=''; }
+    else if(ch==='\n'){ fila.push(campoTxt.replace(/\r$/,'')); filas.push(fila); fila=[]; campoTxt=''; }
+    else campoTxt+=ch;
+  }
+  if(campoTxt||fila.length){ fila.push(campoTxt.replace(/\r$/,'')); filas.push(fila); }
+  return filas.filter(f=>f.some(x=>String(x).trim()));
+}
+$('fileAvance').onchange=e=>{
+  const f=e.target.files[0]; e.target.value=''; if(!f) return;
+  const st=$('statusAvance');
+  if(!libro||!mapa){ st.innerHTML='<span class="hl-bad">Primero carga el libro y el mapa de este vivero.</span>'; return; }
+  const fr=new FileReader();
+  fr.onload=()=>{
+    try{
+      const filas=leerCsv(fr.result);
+      const norm=x=>String(x||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]/g,'');
+      const enc=(filas[0]||[]).map(norm);
+      const cObs=enc.indexOf('obsunitid'), cPlot=enc.indexOf('plot'), cRes=enc.indexOf('resultado');
+      if(cRes<0 || (cObs<0 && cPlot<0)){
+        st.innerHTML='<span class="hl-bad">Este archivo no parece un historial de la app (faltan las columnas Resultado y OBS_UNIT_ID o Plot).</span>'; return;
+      }
+      let marcados=0, ya=0, noOk=0, noEnc=0;
+      filas.slice(1).forEach(r=>{
+        if(norm(r[cRes])!=='correcto'){ noOk++; return; }
+        let pm=null;
+        if(cObs>=0 && r[cObs]){ const fl=buscarFila(String(r[cObs]).trim()); if(fl) pm=buscarPlotMapa(fl); }
+        if(!pm && cPlot>=0 && r[cPlot]) pm=buscarEn(idxPlotMapa, String(r[cPlot]).trim());
+        if(!pm){ noEnc++; return; }
+        if(sembrados.has(pm.key)){ ya++; return; }
+        sembrados.set(pm.key,'ok'); errores.delete(pm.key); saltados.delete(pm.key); marcados++;
+      });
+      log('Avance cargado de', f.name, '| marcados', marcados, '| ya estaban', ya, '| no correctos', noOk, '| no encontrados', noEnc);
+      st.innerHTML=`<span class="${marcados||ya?'hl-ok':'hl-bad'}">✓ ${f.name}: ${marcados} plot${marcados===1?'':'s'} marcado${marcados===1?'':'s'} como sembrado${marcados===1?'':'s'}`+
+        `${ya?`, ${ya} ya estaban`:''}.</span>`+
+        `${noOk?`<br>${noOk} fila${noOk===1?'':'s'} con REVISAR o INCORRECTO no se marcaron.`:''}`+
+        `${noEnc?`<br><span class="hl-warn">${noEnc} fila${noEnc===1?'':'s'} no se encontraron en este mapa: revisa que sea el mismo vivero y localidad.</span>`:''}`;
+      pasoEti=null; pintarPaso(); pintarMapa(); guardar();
+    }catch(err){ st.innerHTML='<span class="hl-bad">No se pudo leer el archivo: '+esc(err.message)+'</span>'; }
+  };
+  fr.readAsText(f,'utf-8');
+};
+
+/* ============================================================
+   HISTORIAL
+   ============================================================ */
+function pintarHistorial(){
+  $('histTable').querySelector('tbody').innerHTML = historial.map(h=>{
+    const b = h.nivel==='ok'?'<span class="badge-true">CORRECTO</span>'
+            : h.nivel==='warn'?'<span class="badge-warn">REVISAR</span>'
+            : '<span class="badge-false">INCORRECTO</span>';
+    const ubic = h.lat!=null
+      ? `<a class="gpslink ${h.acc>25?'gpsmal':''}" href="https://maps.google.com/?q=${h.lat},${h.lon}" target="_blank" rel="noopener">📍 ±${Math.round(h.acc)} m</a>`
+      : '<span style="color:#999">sin GPS</span>';
+    return `<tr><td>${esc(h.hora)}</td><td class="mono">${esc(h.obs)}</td>
+      <td class="mono">${h.etiqueta?esc(h.etiqueta):'<span style="color:#999">—</span>'}</td>
+      <td class="mono">${esc(h.plot)}</td><td>${esc(h.faja)}</td><td>${esc(h.surco)}</td>
+      <td class="mono">${esc(h.gid)}</td><td>${esc(h.entry)}</td><td>${b}</td><td>${ubic}</td>
+      <td>${h.distFinca==null?'<span style="color:#999">—</span>'
+           : h.fueraFinca?`<span class="hl-warn">⚠ ${txtDist(h.distFinca)}</span>`
+           : `<span class="hl-ok">✓ ${txtDist(h.distFinca)}</span>`}</td>
+      <td style="font-size:.8rem">${esc(h.detalle)}</td></tr>`;
+  }).join('');
+  $('sTotal').textContent=historial.length;
+  if($('tbHist')) $('tbHist').textContent=historial.length;
+  $('sOk').textContent=historial.filter(h=>h.nivel==='ok').length;
+  $('sWarn').textContent=historial.filter(h=>h.nivel==='warn').length;
+  $('sBad').textContent=historial.filter(h=>h.nivel==='bad').length;
+  if($('sFuera')) $('sFuera').textContent=historial.filter(h=>h.fueraFinca===true).length;
+}
+function csv(f){ return f.map(r=>r.map(v=>{ const s=String(v==null?'':v);
+  return /[",\n;]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s; }).join(';')).join('\r\n'); }
+// Guardar CSV o KML.
+// - Computadora (Chrome/Edge): ventana "Guardar como" para elegir la carpeta
+//   de Dropbox.
+// - Tablet o celular: SIEMPRE se descarga primero una copia a Descargas y
+//   después se abre "Compartir" para mandarla a Dropbox. Antes solo se
+//   compartía, y en algunas tablets Dropbox recibía el archivo vacío (0 KB):
+//   la app que recibe lo lee tarde y el archivo temporal ya no está. Con la
+//   copia en Descargas el dato nunca se pierde.
+// - Debajo de los botones queda escrito qué se generó (escaneos y tamaño),
+//   para comparar con lo que llegó a Dropbox.
+function tamano(b){ return b.size<1024 ? b.size+' bytes' : (b.size/1024).toFixed(1)+' KB'; }
+function avisoDescarga(txt, malo){
+  const e=$('estDescarga'); if(!e) return;
+  e.textContent=txt; e.style.color = malo ? 'var(--bad)' : 'var(--ok)';
+}
+const ES_MOVIL=/Android|iPhone|iPad|Mobile/i.test(navigator.userAgent);
+async function guardarArchivo(n, b, tipo){
+  const que = `${n}: ${tipo.resumen||''}${tipo.resumen?', ':''}${tamano(b)}.`;
+  if(!ES_MOVIL){
+    if(window.showSaveFilePicker){
+      try{
+        const h=await window.showSaveFilePicker({suggestedName:n,
+          types:[{description:tipo.desc, accept:{[tipo.mime]:[tipo.ext]}}]});
+        const w=await h.createWritable(); await w.write(b); await w.close();
+        log('Guardado:', n, tamano(b)); avisoDescarga('✓ Guardado '+que); return;
+      }catch(e){ if(e&&e.name==='AbortError') return; log('Guardar como no disponible:', e&&e.message); }
+    }
+    descargaDirecta(n,b); avisoDescarga('✓ Guardado en Descargas — '+que); return;
+  }
+  abrirGuardar(n,b,tipo,que);
+}
+
+// En el teléfono, CSV y KML pasan por el mismo cuadro con dos opciones. Cada
+// botón hace UNA sola cosa (antes un toque descargaba y además abría
+// Compartir, y con el KML Android mostraba «Abrir con» en medio).
+let _gd=null;
+function abrirGuardar(n,b,tipo,que){
+  const sePuede=x=>{ try{ return !!(navigator.canShare && navigator.canShare({files:[x]})); }catch(e){ return false; } };
+  const f=new File([b], n, {type:tipo.mime, lastModified:Date.now()});
+  const puede=sePuede(f);
+  // «Guardar como» del sistema: en los teléfonos que lo tienen, Dropbox
+  // aparece como una carpeta más. Es el camino por el que el KML llegaba a
+  // Dropbox hasta la v11 (en la v12 se apagó en teléfonos por error).
+  const carpeta=!!window.showSaveFilePicker;
+  // Último recurso para el KML: descargarlo con su tipo real de archivo de
+  // mapas, para que Android ofrezca «Abrir con» → Dropbox.
+  const porAbrirCon = !puede && !carpeta && tipo.ext==='.kml';
+  _gd={n,b,tipo,que,f,porAbrirCon};
+  $('gdArchivo').textContent=que;
+  $('gdCarpeta').hidden=!carpeta; $('gdNotaCarpeta').hidden=!carpeta;
+  $('gdCompartir').hidden = !(puede||porAbrirCon);
+  $('gdNotaCompartir').hidden = !(puede||porAbrirCon) && carpeta;
+  $('gdNotaCompartir').textContent = puede
+    ? 'Se abre Compartir: elige Dropbox y la carpeta del ensayo.'
+    : porAbrirCon
+      ? 'El teléfono muestra «Abrir con»: elige Dropbox y la carpeta del ensayo.'
+      : 'Este teléfono no deja enviar este archivo a Dropbox directamente. Guárdalo en el teléfono y súbelo desde la app de Dropbox: + → Subir archivo → Descargas.';
+  $('gdNotaCompartir').className = (puede||porAbrirCon) ? 'nota' : 'nota aviso';
+  // Qué permite este teléfono (para diagnóstico si algo no funciona).
+  const csvPrueba=new File(['a'], 'p.csv', {type:'text/csv'});
+  $('gdDiag').textContent=`Este teléfono · Compartir ${tipo.ext.slice(1).toUpperCase()}: ${puede?'sí':'no'}${tipo.ext==='.csv'?'':` · Compartir CSV: ${sePuede(csvPrueba)?'sí':'no'}`} · Guardar como: ${carpeta?'sí':'no'} · ${VERSION_APP.split('·')[1].trim().split(' ')[0]}`;
+  const esKml = tipo.ext==='.kml';
+  $('gdNotaGuardar').textContent = esKml
+    ? 'Queda en la carpeta Descargas, para subirlo después desde la app de Dropbox.'
+    : 'Queda en la carpeta Descargas.';
+  $('gdNotaGuardar').className = esKml ? 'nota aviso' : 'nota';
+  const d=$('gdDlg'); if(d.showModal) d.showModal(); else d.setAttribute('open','');
+}
+function cerrarGuardar(){ const d=$('gdDlg'); if(d.close) d.close(); else d.removeAttribute('open'); }
+$('gdCerrar').onclick=cerrarGuardar;
+$('gdCompartir').onclick=async()=>{
+  if(!_gd) return; const g=_gd;
+  if(g.porAbrirCon){
+    descargaDirecta(g.n, g.b);          // con su tipo real: Android ofrece «Abrir con» → Dropbox
+    log('KML por «Abrir con»:', g.n, tamano(g.b));
+    avisoDescarga('✓ '+g.que+' En «Abrir con» elige Dropbox y la carpeta del ensayo. Si Dropbox no aparece en la lista, usa «Guardar en este teléfono».');
+    cerrarGuardar(); return;
+  }
+  try{
+    await navigator.share({files:[g.f]});
+    log('Compartido:', g.f.name, tamano(g.b));
+    avisoDescarga('✓ Enviado a Compartir — '+g.que+' Debe pesar lo mismo; si llega vacío, repite con «Guardar en este teléfono».');
+    cerrarGuardar();
+  }catch(e){
+    // El aviso también va dentro del cuadro, que sigue abierto.
+    const dentro=t=>{ $('gdNotaCompartir').textContent=t; $('gdNotaCompartir').className='nota aviso'; avisoDescarga(t,true); };
+    if(e&&e.name==='AbortError'){ dentro('No se envió: se cerró Compartir sin elegir una app. Puedes intentar otra vez.'); return; }
+    log('Compartir falló:', e&&e.message);
+    dentro('No se pudo abrir Compartir. Usa «Guardar en este teléfono».');
+  }
+};
+$('gdCarpeta').onclick=async()=>{
+  if(!_gd) return; const g=_gd;
+  const dentro=(t,malo)=>{ $('gdNotaCarpeta').textContent=t; $('gdNotaCarpeta').className=malo?'nota aviso':'nota'; avisoDescarga(t,malo); };
+  try{
+    const h=await window.showSaveFilePicker({suggestedName:g.n,
+      types:[{description:g.tipo.desc, accept:{[g.tipo.mime]:[g.tipo.ext]}}]});
+    const w=await h.createWritable(); await w.write(g.b); await w.close();
+    // Se revisa lo que quedó guardado: algunas apps (como Dropbox) crean el
+    // archivo pero no reciben el contenido, y queda vacío.
+    let real=null; try{ real=(await h.getFile()).size; }catch(e){}
+    log('Guardado en carpeta:', g.n, tamano(g.b), '| quedó:', real);
+    if(real===0){
+      dentro('⚠ El archivo quedó VACÍO en esa carpeta. Usa «Guardar en este teléfono» y súbelo desde la app de Dropbox (+ → Subir archivo).', true);
+      return;
+    }
+    avisoDescarga('✓ Guardado '+g.que+(real!=null?` Comprobado: ${tamano({size:real})} en la carpeta.`:''));
+    cerrarGuardar();
+  }catch(e){
+    if(e&&e.name==='AbortError'){ dentro('No se guardó: se cerró «Guardar como» sin elegir carpeta.', true); return; }
+    log('Guardar como falló:', e&&e.message);
+    dentro('No se pudo guardar en esa carpeta ('+(e&&e.message||'error')+'). Usa «Guardar en este teléfono».', true);
+  }
+};
+$('gdGuardar').onclick=()=>{
+  if(!_gd) return; const g=_gd;
+  // Tipo genérico: marcado como KML, Android intenta abrirlo en vez de guardarlo.
+  descargaDirecta(g.n, new Blob([g.b],{type:'application/octet-stream'}));
+  log('Guardado en Descargas:', g.n, tamano(g.b));
+  avisoDescarga('✓ Guardado en Descargas — '+g.que+' Para pasarlo a Dropbox: app de Dropbox → + → Subir archivo → Descargas.');
+  cerrarGuardar();
+};
+function bajar(n,t,resumen){
+  return guardarArchivo(n, new Blob(['\ufeff'+t],{type:'text/csv;charset=utf-8'}),
+    {desc:'Archivo CSV', mime:'text/csv', ext:'.csv', resumen});
+}
+function descargaDirecta(n,b){
+  const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download=n; a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),1500);
+}
+
+function nombreBase(){ return [(mapa&&mapa.estudio)||'vivero',(mapa&&mapa.loc)||''].filter(Boolean).join('_').replace(/\W+/g,'_'); }
+const fx = x => x==null ? '' : String(x);
+$('btnExport').onclick=()=>{
+  if(!historial.length){
+    avisoDescarga('No hay escaneos en el historial de esta tablet. Si ya se había limpiado, los datos están en la hoja de Google o en un CSV anterior.', true);
+    return;
+  }
+  const n=historial.length;
+  bajar(`siembra_${nombreBase()}_${new Date().toISOString().slice(0,10)}.csv`, csv(
+    [['Fecha','Hora','OBS_UNIT_ID','Etiqueta_plot','Plot','Faja','Surco','GID','Designation','Entry','Rol','Fase','Resultado',
+      'Latitud','Longitud','Precision_m','Edad_GPS_s','Finca','Distancia_finca_m','Fuera_de_finca','Ver_en_mapa','Detalle']]
+    .concat(historial.map(h=>[h.fecha||'',h.hora,h.obs,h.etiqueta||'',h.plot,h.faja,h.surco,h.gid,h.desig,h.entry,h.rol||'',h.fase||'',
+      h.nivel==='ok'?'CORRECTO':h.nivel==='warn'?'REVISAR':'INCORRECTO',
+      h.lat!=null?h.lat.toFixed(6):'', h.lon!=null?h.lon.toFixed(6):'',
+      h.acc!=null?Math.round(h.acc):'', fx(h.gpsEdad),
+      h.finca||'', fx(h.distFinca), h.fueraFinca==null?'':(h.fueraFinca?'SI':'NO'),
+      h.lat!=null?`https://maps.google.com/?q=${h.lat.toFixed(6)},${h.lon.toFixed(6)}`:'', h.detalle]))),
+    `${n} escaneo${n===1?'':'s'}`);
+};
+// KML: abre en Google Earth, Google My Maps o QGIS. Un punto por escaneo.
+$('btnExportKml').onclick=()=>{
+  const pts = historial.filter(h=>h.lat!=null);
+  if(!pts.length){ avisoDescarga('Ningún escaneo tiene ubicación GPS todavía: no hay puntos para el KML.', true); return; }
+  const x = t => esc(t).replace(/'/g,'&apos;');
+  const color = n => n==='ok'?'ff2f8f13':n==='warn'?'ff0067ff':'ff2000b0';   // aabbggrr
+  const marcas = pts.slice().reverse().map(h=>`
+  <Placemark>
+    <name>${x(h.plot||h.obs)}</name>
+    <styleUrl>#${h.nivel}</styleUrl>
+    <description>${x(`${h.nivel==='ok'?'CORRECTO':h.nivel==='warn'?'REVISAR':'INCORRECTO'} · OBS ${h.obs}${h.etiqueta&&h.etiqueta!==h.obs?' · ETIQUETA '+h.etiqueta:''} · faja ${h.faja} surco ${h.surco} · GID ${h.gid} · ±${Math.round(h.acc)} m${h.distFinca!=null?` · a ${txtDist(h.distFinca)} de ${h.finca}${h.fueraFinca?' (FUERA DE LA FINCA)':''}`:''} · ${h.fecha||''} ${h.hora}${h.detalle?' · '+h.detalle:''}`)}</description>
+    <Point><coordinates>${h.lon.toFixed(7)},${h.lat.toFixed(7)},0</coordinates></Point>
+  </Placemark>`).join('');
+  const estilos = ['ok','warn','bad'].map(n=>`
+  <Style id="${n}"><IconStyle><color>${color(n)}</color><scale>0.9</scale>
+    <Icon><href>http://maps.google.com/mapfiles/kml/shapes/placemark_circle.png</href></Icon></IconStyle></Style>`).join('');
+  const kml = `<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2"><Document>
+  <name>${x('Siembra '+nombreBase())}</name>${estilos}${marcas}
+</Document></kml>`;
+  guardarArchivo(`siembra_${nombreBase()}_${new Date().toISOString().slice(0,10)}.kml`,
+    new Blob([kml],{type:'application/vnd.google-earth.kml+xml'}),
+    {desc:'Puntos GPS (KML)', mime:'application/vnd.google-earth.kml+xml', ext:'.kml',
+     resumen:`${pts.length} punto${pts.length===1?'':'s'} GPS`});
+};
+$('btnExportPend').onclick=()=>{
+  if(!mapa) return;
+  const p=mapa.plots.filter(x=>!sembrados.has(x.key));
+  if(!p.length){ avisoDescarga('No hay plots pendientes: todo el mapa está sembrado.', false); return; }
+  bajar(`pendientes_${((mapa.loc||mapa.estudio||'vivero')).replace(/\W+/g,'_')}.csv`, csv(
+    [['Plot','Faja','Surco_ini','Surco_fin','Entry','Rep','Rol','Saltado','GID','OBS_UNIT_ID']]
+    .concat(p.map(x=>[x.plot,x.faja,x.surcoIni,x.surcoFin,x.entry,x.rep,rolDe(x),saltados.has(x.key)?'SI':'',
+      (x.libro&&x.libro.gid)||x.gid,(x.libro&&x.libro.obs)||'']))),
+    `${p.length} plot${p.length===1?'':'s'} pendiente${p.length===1?'':'s'}`);
+};
+$('btnClear').onclick=()=>{
+  if(!confirm('¿Borrar el historial y el avance de siembra?')) return;
+  historial=[]; sembrados=new Map(); errores=new Set(); saltados=new Set(); pasoEti=null; pintarPaso(); pintarHistorial(); pintarMapa(); guardar();
+};
+
+/* ============================================================
+   MODO / VISTA
+   ============================================================ */
+// Solo existe el modo siembra en orden (el modo libre se quitó).
+function aplicarModo(){ pintarMapa(); guardar(); }
+function aplicarVista(){
+  document.body.dataset.zoom = String(zoom);
+  pintarMapa(); guardar();
+}
+function diasDesde(ts){ return ts ? Math.floor((Date.now()-ts)/86400000) : null; }
+function chipArchivos(){
+  actualizarTabs();
+  const c=$('chipArch'); if(!c) return;
+  const falta=[]; if(!libro) falta.push('libro'); if(!mapa) falta.push('mapa');
+  if(falta.length){ c.className='chip bad'; c.textContent='falta: '+falta.join(', '); return; }
+  const sitio = (mapa.loc||mapa.estudio||'').slice(0,22);
+  c.className='chip ok'; c.textContent=`${sitio} · ${mapa.plots.length} plots`;
+}
+
+/* ============================================================
+   PESTAÑAS
+   1 Archivos → obligatoria. 2 Escanear y 3 Historial se desbloquean
+   solo cuando los tres archivos están cargados y con sus columnas clave.
+   ============================================================ */
+let tabActual='carga', tabGuardada='';
+function estadoArchivos(){
+  const L = !!(libro && libro.filas && libro.filas.length && libro.cols.obs!=null);
+  const M = !!(mapa && mapa.plots && mapa.plots.length);
+  return {
+    libro:{ ok:L, cargado:!!libro, txt:'Libro de campo' },
+    mapa: { ok:M, cargado:!!mapa,  txt:'Mapa de campo' },
+    listos:[L,M].filter(Boolean).length
+  };
+}
+function actualizarTabs(){
+  const e=estadoArchivos(), todo=e.listos===2;
+  $('tbCarga').textContent = e.listos+'/2';
+  document.querySelectorAll('.tab[data-tab="escaneo"], .tab[data-tab="hist"]').forEach(b=>b.disabled=!todo);
+  $('btnIrEscaneo').disabled = !todo;
+  $('btnIrEscaneo').innerHTML = todo ? 'Continuar a escanear &rarr;'
+    : `Falta${2-e.listos===1?'':'n'} ${2-e.listos} archivo${2-e.listos===1?'':'s'} para continuar`;
+  $('checklist').innerHTML = ['libro','mapa'].map(k=>{
+    const x=e[k], cls = x.ok?'si':(x.cargado?'mal':'no');
+    const ico = x.ok?'✓':(x.cargado?'!':'○');
+    const det = x.ok?'' : (x.cargado?' — revisar columnas':' — pendiente');
+    return `<div class="ci ${cls}"><span class="ico">${ico}</span>${x.txt}${det}</div>`;
+  }).join('');
+  const ids={libro:'ldLibro',mapa:'ldMapa'};
+  for(const k in ids){ const el=$(ids[k]); if(!el) continue;
+    el.classList.toggle('listo', e[k].ok); el.classList.toggle('mal', e[k].cargado && !e[k].ok); }
+  if(!todo && tabActual!=='carga') irTab('carga');
+}
+function irTab(nombre){
+  const b=document.querySelector(`.tab[data-tab="${nombre}"]`);
+  if(!b || b.disabled) return;
+  tabActual=nombre;
+  document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('on', t.dataset.tab===nombre));
+  document.querySelectorAll('.pane').forEach(p=>p.classList.toggle('on', p.dataset.pane===nombre));
+  window.scrollTo(0,0);
+  if(nombre==='escaneo') iniciarGps(); else detenerGps();
+  if(nombre==='escaneo'){ pintarMapa(); habilitarEscaneo(); pintarFinca();
+    if(!$('scanObs').disabled) setTimeout(()=>campoActivo().focus(),50); }
+  if(nombre==='hist') pintarHistorial();
+  guardar();
+}
+document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>irTab(b.dataset.tab));
+$('btnIrEscaneo').onclick=()=>{ if(libro&&mapa) cruzar(true); irTab('escaneo'); };
+$('zOut').onclick=()=>{ zoom=Math.max(0,zoom-1); aplicarVista(); };
+$('zIn').onclick =()=>{ zoom=Math.min(2,zoom+1); aplicarVista(); };
+
+$('btnVoltear').onclick=()=>{ volteado=!volteado; pintarMapa(); };
+
+/* ============================================================
+   CARGA DE ARCHIVOS
+   ============================================================ */
+function montarSelector(wb, selId, wrapId, onPick, preferir){
+  const sel=$(selId);
+  sel.innerHTML=wb.SheetNames.map(n=>`<option>${esc(n)}</option>`).join('');
+  $(wrapId).style.display = wb.SheetNames.length>1?'':'none';
+  sel.onchange=()=>onPick(sel.value);
+  const elegida = preferir ? preferir(wb) : wb.SheetNames[0];
+  sel.value=elegida; onPick(elegida);
+}
+$('fileLibro').onchange=e=>{
+  const f=e.target.files[0]; if(!f) return;
+  $('statusLibro').textContent='Leyendo…';
+  leerWb(f,(wb,err)=>{
+    if(!wb){ $('statusLibro').innerHTML='<span class="hl-bad">No se pudo leer: '+esc(err&&err.message)+'</span>'; return; }
+    _wbLibro=wb; locSel='';
+    montarSelector(wb,'hojaLibro','hojaLibroWrap',cargarHojaLibro);
+  });
+};
+function cargarHojaLibro(nombre){
+  libro=construirTabla(hojaAFilas(_wbLibro,nombre),ALIAS_LIBRO);
+  libro.cargadoEn=Date.now();
+  log('Libro: encabezado en fila',libro.filaHdr,'| coincidencias',libro.pts,'| cols',JSON.stringify(libro.cols));
+  materializarLibro(); mostrarMapeo('libro'); mostrarLocalidades(); reindexarLibro(); estadoLibro();
+  if(mapa) cruzar(true); habilitarEscaneo(); chipArchivos(); guardar();
+}
+$('fileMapa').onchange=e=>{
+  const f=e.target.files[0]; if(!f) return;
+  $('statusMapa').textContent='Leyendo…';
+  leerWb(f,(wb,err)=>{
+    if(!wb){ $('statusMapa').innerHTML='<span class="hl-bad">No se pudo leer: '+esc(err&&err.message)+'</span>'; return; }
+    _wbMapa=wb;
+    montarSelector(wb,'hojaMapa','hojaMapaWrap',cargarHojaMapa,
+      w=>{ for(const n of w.SheetNames){ if(parseGridMapa(hojaAFilas(w,n))) return n; } return w.SheetNames[0]; });
+  });
+};
+function cargarHojaMapa(nombre){
+  const hojaRes=(_wbMapa.SheetNames||[]).find(n=>n!==nombre && /summary|resumen/i.test(n));
+  const m=construirMapa(hojaAFilas(_wbMapa,nombre),nombre, hojaRes?hojaAFilas(_wbMapa,hojaRes):null);
+  if(!m){ $('statusMapa').innerHTML='<span class="hl-bad">No se reconoció la cuadrícula en esta hoja.</span>';
+          log('Mapa: sin cuadrícula en',nombre); return; }
+  mapa=m; reindexarMapa(); estadoMapa(); pasoEti=null; pintarPaso();
+  log('Mapa',nombre,':',mapa.plots.length,'plots | orden:',(mapa.orden||[]).slice(0,8).join(' → '),'…');
+  if(libro){ locSel=''; mostrarLocalidades(); reindexarLibro(); estadoLibro(); cruzar(true); }
+  pintarMapa(); habilitarEscaneo(); chipArchivos(); pintarFinca(); guardar();
+}
+$('btnCruzar').onclick=()=>cruzar(false);
+// ---- Siembras guardadas -------------------------------------------------
+async function abrirSiembra(id){
+  await guardarYa();
+  await idbPut(K_ACTIVA,id);
+  location.reload();
+}
+$('btnNuevaSiembra').onclick=async()=>{
+  if(historial.length||mapa||libro) await guardarYa();
+  siembraId=nuevoId();
+  await idbPut(K_ACTIVA,siembraId);
+  location.reload();
+};
+async function eliminarSiembra(id, esActual){
+  const ind=await leerIndice(); const s=ind.find(x=>x.id===id);
+  const nombre=s?s.nombre:'esta siembra';
+  if(!confirm(`¿Eliminar «${nombre}»? Se borran su libro, su mapa y su avance en este teléfono. Lo ya enviado a la hoja de Google y los CSV guardados no se borran.`)) return;
+  clearTimeout(_guardarTimer);
+  await idbDel(kSiembra(id));
+  const resto=ind.filter(x=>x.id!==id);
+  await idbPut(K_INDICE,resto);
+  if(esActual){ await idbPut(K_ACTIVA, resto.length?resto[0].id:nuevoId()); location.reload(); }
+  else pintarSiembras();
+}
+$('btnLimpiarTodo').onclick=()=>eliminarSiembra(siembraId,true);
+const FASE_TXT={todo:'Todo', macho:'Solo machos', hembra:'Solo hembras'};
+async function pintarSiembras(){
+  const box=$('sbActual'); if(!box) return;
+  const r=resumenSiembra();
+  box.innerHTML=`<b>${esc(r.nombre)}</b><small>${r.total?`${r.hechos} de ${r.total} plots sembrados`:'Carga el libro y el mapa'}`+
+    `${r.detalle?' · '+esc(r.detalle):''}${r.tipo?' · '+esc(r.tipo):''}${r.tipo==='Cross'?' · hoy: '+FASE_TXT[fase]:''}`+
+    `${r.saltados?` · ${r.saltados} saltado${r.saltados===1?'':'s'}`:''}</small>`;
+  const otras=(await leerIndice()).filter(x=>x.id!==siembraId);
+  $('sbLista').innerHTML = otras.length ? '<span class="mini">Otras siembras guardadas en este teléfono:</span>'+otras.map(x=>
+    `<div class="sb-item"><div class="sb-txt"><b>${esc(x.nombre)}</b><small>${x.total?`${x.hechos} de ${x.total} plots`:'sin mapa'}`+
+    `${x.detalle?' · '+esc(x.detalle):''} · ${new Date(x.act).toLocaleDateString('es-GT')}</small></div>`+
+    `<button class="btn-big chico" type="button" data-abrir="${esc(x.id)}">Abrir</button>`+
+    `<button class="btn-peligro chico" type="button" data-borrar="${esc(x.id)}">Eliminar</button></div>`).join('') : '';
+  $('sbLista').querySelectorAll('[data-abrir]').forEach(b=>b.onclick=()=>abrirSiembra(b.dataset.abrir));
+  $('sbLista').querySelectorAll('[data-borrar]').forEach(b=>b.onclick=()=>eliminarSiembra(b.dataset.borrar,false));
+}
+
+/* ============================================================
+   CÁMARA
+   Chrome en Android expone el mismo motor nativo (ML Kit) que usan las apps
+   de escáner a través de BarcodeDetector. ZXing compilado a JavaScript, que
+   es lo que trae html5-qrcode, falla mucho con códigos lineales. Se usa
+   BarcodeDetector cuando existe y html5-qrcode solo como respaldo.
+   ============================================================ */
+// Code 39, Codabar e ITF no tienen dígito verificador obligatorio: con una
+// imagen borrosa "leen" basura. Por defecto solo Code 128 (lo que imprime BMS)
+// y QR, que sí verifican.
+const FORMATOS = {
+  c128:  ['code_128','qr_code'],
+  todos: ['code_128','code_39','code_93','codabar','itf','ean_13','ean_8','upc_a','upc_e','qr_code']
+};
+let camFmt = (()=>{ try{ return localStorage.getItem('siembraCamFmt')||'c128'; }catch(e){ return 'c128'; } })();
+let camStream=null, camTrack=null, camDetector=null, camLoop=null, camQr=null;
+let campoCam=null, camUltima={v:'',t:0}, camZoom=null;
+
+document.querySelectorAll('[data-cam]').forEach(b=>{ b.onclick=ev=>{ ev.preventDefault(); abrirCam(b.dataset.cam); }; });
+// Los campos van con inputmode="none" para que el teclado no tape la pantalla
+// al escanear (la pistola lectora igual funciona). Este botón lo abre a mano.
+document.querySelectorAll('[data-kbd]').forEach(b=>{ b.onclick=ev=>{
+  ev.preventDefault();
+  const inp=$(b.dataset.kbd); if(inp.disabled) return;
+  const abrir = inp.getAttribute('inputmode')==='none';
+  inp.setAttribute('inputmode', abrir?'text':'none');
+  b.classList.toggle('on',abrir);
+  inp.blur(); setTimeout(()=>inp.focus(),30);
+}; });
+
+function camInfo(t){ $('camInfo').textContent=t; }
+
+async function abrirCam(campo){
+  campoCam=campo; camUltima={v:'',t:0}; votos.clear();
+  camPaso(pasoEti ? '2 · Escanea el SOBRE' : '1 · Escanea la ETIQUETA del plot');
+  // Cierra el teclado: si un campo tenía el foco, el teclado tapaba la cámara.
+  if(document.activeElement && document.activeElement.blur) document.activeElement.blur();
+  $('camFmt').value=camFmt;
+  $('camModal').style.display='flex';
+  if('BarcodeDetector' in window){
+    try{ await iniciarNativo(); return; }
+    catch(e){ log('BarcodeDetector falló:', e&&e.message); camInfo('Motor nativo no disponible, usando respaldo…'); }
+  } else {
+    log('BarcodeDetector no existe en este navegador: se usa html5-qrcode.');
+  }
+  iniciarRespaldo();
+}
+
+/* ---------- elección de cámara ----------
+   Los teléfonos con varias cámaras traseras suelen entregarle al navegador
+   la gran angular, que tiene ENFOQUE FIJO: por más que acerques o alejes no
+   enfoca. Se busca la trasera que declare enfoque automático continuo y se
+   recuerda para la próxima vez. */
+const LS_CAM='siembraCamId';
+function camGuardada(){ try{ return localStorage.getItem(LS_CAM)||''; }catch(e){ return ''; } }
+function guardarCam(id){ try{ if(id) localStorage.setItem(LS_CAM,id); else localStorage.removeItem(LS_CAM); }catch(e){} }
+function tieneAutofoco(track){
+  const c = (track && track.getCapabilities) ? track.getCapabilities() : {};
+  return Array.isArray(c.focusMode) && c.focusMode.includes('continuous');
+}
+async function abrirStream(deviceId){
+  const v = deviceId ? {deviceId:{exact:deviceId}} : {facingMode:{ideal:'environment'}};
+  v.width={ideal:1920}; v.height={ideal:1080};
+  return navigator.mediaDevices.getUserMedia({video:v, audio:false});
+}
+async function camarasVideo(){
+  return (await navigator.mediaDevices.enumerateDevices()).filter(d=>d.kind==='videoinput');
+}
+async function buscarCamaraConFoco(){
+  const todas = await camarasVideo();
+  const traseras = todas.filter(d=>/back|rear|trasera|environment/i.test(d.label));
+  const lista = traseras.length ? traseras : todas;
+  for(const d of lista){
+    try{
+      const st = await abrirStream(d.deviceId);
+      const t = st.getVideoTracks()[0];
+      const ok = tieneAutofoco(t);
+      log('Probando', d.label||d.deviceId.slice(0,8), '→ autofoco:', ok);
+      st.getTracks().forEach(x=>x.stop());
+      if(ok) return d.deviceId;
+    }catch(e){ log('No abrió', d.label, e&&e.message); }
+  }
+  return '';
+}
+
+async function iniciarNativo(){
+  const soportados = await window.BarcodeDetector.getSupportedFormats();
+  const usar = FORMATOS[camFmt].filter(f=>soportados.includes(f));
+  if(!usar.length) throw new Error('el navegador no soporta '+FORMATOS[camFmt].join(','));
+  camDetector = new window.BarcodeDetector({formats:usar});
+  log('Motor nativo BarcodeDetector. Formatos:', usar.join(','));
+
+  let id = camGuardada(), st = null;
+  if(id){ try{ st = await abrirStream(id); }catch(e){ guardarCam(''); id=''; } }
+  if(!st){
+    st = await abrirStream('');
+    const t = st.getVideoTracks()[0];
+    if(tieneAutofoco(t)){ guardarCam((t.getSettings&&t.getSettings().deviceId)||''); }
+    else {
+      st.getTracks().forEach(x=>x.stop());
+      camInfo('Buscando la cámara que enfoca…');
+      const elegido = await buscarCamaraConFoco();
+      guardarCam(elegido);
+      st = await abrirStream(elegido);
+    }
+  }
+  camStream = st;
+  camTrack = camStream.getVideoTracks()[0];
+  if(tieneAutofoco(camTrack)){ try{ await camTrack.applyConstraints({advanced:[{focusMode:'continuous'}]}); }catch(e){} }
+
+  const v=$('camVideo');
+  v.srcObject=camStream; v.style.display='block'; $('camGuide').style.display='block';
+  await v.play();
+  const cfg = camTrack.getSettings ? camTrack.getSettings() : {};
+  const foco = tieneAutofoco(camTrack);
+  camInfo(`${cfg.width||'?'}×${cfg.height||'?'} · ${foco?'enfoque automático':'SIN enfoque automático — prueba Cambiar cámara'}`);
+  log('Cámara:', (cfg.width||'?')+'x'+(cfg.height||'?'), '| track:', camTrack.label, '| autofoco:', foco);
+  prepararControles();
+
+  const ajustar=()=>{ if(v.videoWidth&&v.videoHeight)
+    $('camStage').style.aspectRatio = v.videoWidth+' / '+v.videoHeight; };
+  v.addEventListener('loadedmetadata',ajustar); ajustar();
+
+  setTimeout(prepararControles,900);
+  setTimeout(()=>{ if(camZoom && camZoom.max>=2 && camZoom.val<2){
+      camZoom.val=Math.min(2,camZoom.max); aplicar({zoom:camZoom.val}); } },1100);
+
+  const cv=document.createElement('canvas'), ctx=cv.getContext('2d',{willReadFrequently:true});
+  let ultimoAviso=0, alterna=0;
+  const tick = async () => {
+    if(!camStream) return;
+    if(v.readyState>=2 && v.videoWidth){
+      const w=v.videoWidth, h=v.videoHeight;
+      let codigos=[];
+      if(++alterna % 2){
+        try{
+          const bw=Math.round(w*0.88), bh=Math.round(h*0.45);
+          const bx=Math.round((w-bw)/2), by=Math.round((h-bh)/2);
+          if(cv.width!==bw||cv.height!==bh){ cv.width=bw; cv.height=bh; }
+          ctx.drawImage(v,bx,by,bw,bh,0,0,bw,bh);
+          codigos = await camDetector.detect(cv);
+        }catch(e){}
+      }
+      if(!codigos.length){ try{ codigos = await camDetector.detect(v); }catch(e){} }
+      if(codigos.length){ ultimoAviso=Date.now(); votar(codigos[0].rawValue, codigos[0].format); }
+      else if(Date.now()-ultimoAviso>3500){ ultimoAviso=Date.now();
+        camInfo('Buscando… a 15–20 cm, con el código a lo ancho del marco. Si se ve chico, Zoom +'); }
+    }
+    camLoop = requestAnimationFrame(tick);
+  };
+  camLoop = requestAnimationFrame(tick);
+}
+
+/* ---------- consenso ----------
+   El bucle analiza ~30 cuadros por segundo. Sobre una imagen borrosa,
+   tarde o temprano alguno decodifica basura. Un valor solo se acepta cuando
+   aparece varias veces igual: 2 veces si existe en el catálogo/libro, 3 si
+   no existe (para no rechazar un sobre por una lectura fantasma). */
+const votos=new Map();
+function votar(txt, fmt){
+  const ahora=Date.now();
+  for(const [k,x] of votos) if(ahora-x.t>2500) votos.delete(k);
+  const x=votos.get(txt)||{n:0,t:ahora}; x.n++; x.t=ahora; votos.set(txt,x);
+  const hacen = buscarFila(txt) ? 2 : 3;
+  if(x.n>=hacen){ votos.clear(); recibirCam(txt, fmt); }
+  else camInfo(`Confirmando ${txt}… ${x.n}/${hacen}`);
+}
+
+function prepararControles(){
+  const caps = (camTrack && camTrack.getCapabilities) ? camTrack.getCapabilities() : {};
+  // Varios Android no declaran 'torch' pero sí lo aceptan, así que el botón
+  // queda habilitado y se avisa solo si applyConstraints falla de verdad.
+  $('camTorch').disabled = !camTrack;
+  const hayZoom = ('zoom' in caps);
+  $('camZoomIn').disabled = !hayZoom; $('camZoomOut').disabled = !hayZoom;
+  if(hayZoom){ const st=camTrack.getSettings(); camZoom={min:caps.zoom.min,max:caps.zoom.max,
+    paso:caps.zoom.step||((caps.zoom.max-caps.zoom.min)/10), val:st.zoom||caps.zoom.min}; }
+  else camZoom=null;
+  $('camTorch').classList.remove('on');
+}
+async function aplicar(constraint){
+  if(!camTrack) return;
+  try{ await camTrack.applyConstraints({advanced:[constraint]}); }
+  catch(e){ log('No se pudo aplicar', JSON.stringify(constraint), e&&e.message); }
+}
+$('camTorch').onclick = async ()=>{
+  const on = !$('camTorch').classList.contains('on');
+  try{ await camTrack.applyConstraints({advanced:[{torch:on}]});
+       $('camTorch').classList.toggle('on',on); }
+  catch(e){ camInfo('Esta cámara no deja encender la linterna desde el navegador.');
+            $('camTorch').disabled=true; log('torch rechazado:',e&&e.message); }
+};
+$('camZoomIn').onclick  = async ()=>{ if(!camZoom) return;
+  camZoom.val=Math.min(camZoom.max,camZoom.val+camZoom.paso*2); await aplicar({zoom:camZoom.val});
+  camInfo('Zoom '+camZoom.val.toFixed(1)+'x'); };
+$('camZoomOut').onclick = async ()=>{ if(!camZoom) return;
+  camZoom.val=Math.max(camZoom.min,camZoom.val-camZoom.paso*2); await aplicar({zoom:camZoom.val});
+  camInfo('Zoom '+camZoom.val.toFixed(1)+'x'); };
+// La vista previa va a 1080p, pero la foto fija sale a la resolución del
+// sensor (varios megapíxeles). Para un código pequeño o lejano eso es la
+// diferencia entre leerlo y no leerlo.
+$('camFoto').onclick = async ()=>{
+  if(!camTrack || !camDetector){ camInfo('La foto solo funciona con el motor nativo.'); return; }
+  camInfo('Tomando foto…');
+  try{
+    let bmp=null;
+    if('ImageCapture' in window){
+      const ic=new window.ImageCapture(camTrack);
+      try{ bmp = await createImageBitmap(await ic.takePhoto()); }
+      catch(e){ bmp = await ic.grabFrame(); }
+    }
+    if(!bmp){ const v=$('camVideo'); bmp = await createImageBitmap(v); }
+    log('Foto fija:', bmp.width+'x'+bmp.height);
+    const codigos = await camDetector.detect(bmp);
+    if(codigos.length){
+      const txt=codigos[0].rawValue;
+      const conocido = !!buscarFila(txt);
+      if(conocido) recibirCam(txt, codigos[0].format+' (foto)');
+      else { votar(txt, codigos[0].format+' (foto)');
+             camInfo(`La foto leyó ${txt}, que no está en los archivos. Toma otra para confirmar.`); }
+    }
+    else camInfo(`Nada en la foto de ${bmp.width}×${bmp.height}. Acerca más o enciende la linterna.`);
+  }catch(e){ camInfo('No se pudo tomar la foto: '+(e&&e.message)); log('Foto falló:',e&&e.message); }
+};
+
+$('camFlip').onclick = async ()=>{
+  try{
+    const lista = await camarasVideo();
+    if(lista.length<2){ camInfo('Este equipo solo tiene una cámara disponible.'); return; }
+    const actual = camTrack && camTrack.getSettings ? camTrack.getSettings().deviceId : '';
+    const k = lista.findIndex(d=>d.deviceId===actual);
+    const sig = lista[(k+1)%lista.length];
+    guardarCam(sig.deviceId);
+    const c=campoCam; pararCam(); $('camModal').style.display='flex'; campoCam=c;
+    await iniciarNativo();
+    camInfo(`Cámara ${(k+1)%lista.length+1}/${lista.length}: ${sig.label||'sin nombre'} · `+
+            (tieneAutofoco(camTrack)?'enfoque automático':'enfoque FIJO'));
+  }catch(e){ camInfo('No se pudo cambiar: '+(e&&e.message)); }
+};
+$('camFmt').onchange = async ()=>{
+  camFmt=$('camFmt').value; try{ localStorage.setItem('siembraCamFmt',camFmt); }catch(e){}
+  const c=campoCam; pararCam(); $('camModal').style.display='flex'; campoCam=c;
+  try{ await iniciarNativo(); }catch(e){ iniciarRespaldo(); }
+};
+
+function iniciarRespaldo(){
+  if(typeof Html5Qrcode==='undefined'){ camInfo('No hay lector disponible en este navegador.'); return; }
+  $('camVideo').style.display='none'; $('camGuide').style.display='none';
+  const F=(typeof Html5QrcodeSupportedFormats!=='undefined')?Html5QrcodeSupportedFormats:null;
+  const fmts = !F ? undefined : (camFmt==='c128' ? [F.CODE_128, F.QR_CODE] : [
+    F.CODE_128, F.CODE_39, F.CODE_93, F.ITF, F.CODABAR, F.EAN_13, F.EAN_8, F.UPC_A, F.UPC_E, F.QR_CODE]);
+  camQr=new Html5Qrcode('camReader',{ formatsToSupport:fmts,
+    experimentalFeatures:{ useBarCodeDetectorIfSupported:true } });
+  camQr.start({facingMode:'environment'},
+    { fps:10, qrbox:(w,h)=>({width:Math.floor(w*0.9),height:Math.floor(h*0.35)}),
+      videoConstraints:{ facingMode:'environment', width:{ideal:1920}, height:{ideal:1080} } },
+    (txt,res)=>votar(txt,(res&&res.result&&res.result.format&&res.result.format.formatName)||''),
+    ()=>{}
+  ).then(()=>camInfo('Respaldo activo — apunta el código')).catch(e=>camInfo('No se pudo abrir la cámara: '+e));
+}
+
+function recibirCam(txt, formato){
+  const ahora=Date.now();
+  if(txt===camUltima.v && ahora-camUltima.t<1800) return;
+  camUltima={v:txt,t:ahora};
+  logLectura('cámara'+(formato?' '+formato:''), txt);
+  if(navigator.vibrate) navigator.vibrate(70);
+  $('scanObs').value = txt;
+  tomarObs();
+  // Escaneo hecho: se cierra la cámara y queda a la vista el veredicto.
+  camPaso('✓ Listo', true);
+  setTimeout(cerrarCam, 450);
+}
+
+function camPaso(t, ok){ const e=$('camPaso'); e.textContent=t; e.classList.toggle('ok',!!ok); }
+
+
+function pararCam(){
+  if(camLoop){ cancelAnimationFrame(camLoop); camLoop=null; }
+  if(camStream){ camStream.getTracks().forEach(t=>t.stop()); camStream=null; camTrack=null; }
+  const v=$('camVideo'); if(v){ v.srcObject=null; v.style.display='none'; }
+  $('camGuide').style.display='none';
+  if(camQr){ const q=camQr; camQr=null; q.stop().then(()=>q.clear()).catch(()=>{}); }
+  $('camModal').style.display='none';
+}
+function cerrarCam(){ pararCam(); campoCam=null; if(!$('scanObs').disabled) campoActivo().focus(); }
+$('camCerrar').onclick=cerrarCam;
+
+
+/* ============================================================
+   GPS
+   Funciona SIN internet: la posición viene de los satélites, no de la red.
+   Lo único que necesita internet es ver el punto sobre un mapa (el enlace
+   del historial), y eso se puede hacer después, en la oficina.
+
+   Se usa watchPosition y no una lectura por escaneo: el GPS tarda en
+   "enganchar" (más sin internet, porque no tiene ayuda de la red), así que
+   se mantiene encendido mientras estás en la pestaña Escanear y cada escaneo
+   toma la última posición, sin esperar. Fuera de esa pestaña se apaga para
+   ahorrar batería.
+   ============================================================ */
+let gpsUltimo=null, gpsWatch=null, gpsEstado='apagado';
+function iniciarGps(){
+  if(!('geolocation' in navigator)){ gpsEstado='no disponible'; chipGps(); return; }
+  if(gpsWatch!=null) return;
+  gpsEstado='buscando'; chipGps();
+  gpsWatch = navigator.geolocation.watchPosition(p=>{
+    gpsUltimo={lat:p.coords.latitude, lon:p.coords.longitude, acc:p.coords.accuracy,
+               alt:p.coords.altitude, t:p.timestamp||Date.now()};
+    gpsEstado='ok'; chipGps();
+    if(fijando) agregarMuestra(gpsUltimo);
+    pintarFinca();
+  }, e=>{
+    gpsEstado = e.code===1 ? 'permiso negado' : e.code===2 ? 'sin señal' : 'buscando';
+    log('GPS:', gpsEstado, e.message||''); chipGps();
+  }, {enableHighAccuracy:true, maximumAge:3000, timeout:60000});
+}
+function detenerGps(){
+  if(fijando) cancelarFijado('Se salió de la pestaña Escanear.');
+  if(gpsWatch!=null){ try{ navigator.geolocation.clearWatch(gpsWatch); }catch(e){} gpsWatch=null; }
+  if(gpsEstado!=='permiso negado'){ gpsEstado='apagado'; } chipGps();
+}
+// El navegador suspende el GPS si la pantalla se apaga: al volver se reactiva.
+document.addEventListener('visibilitychange', ()=>{
+  if(document.visibilityState==='visible' && tabActual==='escaneo'){ detenerGps(); iniciarGps(); }
+});
+function gpsParaRegistro(){
+  if(!gpsUltimo) return null;
+  return {lat:gpsUltimo.lat, lon:gpsUltimo.lon, acc:gpsUltimo.acc,
+          edad:Math.max(0,Math.round((Date.now()-gpsUltimo.t)/1000))};
+}
+function chipGps(){
+  const c=$('chipGps'); if(!c) return;
+  const g=gpsParaRegistro();
+  if(gpsEstado==='permiso negado'){ c.className='chip bad'; c.textContent='📍 GPS sin permiso'; return; }
+  if(gpsEstado==='no disponible'){ c.className='chip bad'; c.textContent='📍 sin GPS'; return; }
+  if(gpsEstado==='apagado'){ c.className='chip'; c.textContent='📍 GPS'; return; }
+  if(!g){ c.className='chip warn'; c.textContent='📍 buscando satélites…'; return; }
+  const a=Math.round(g.acc);
+  c.className = (a<=15 && g.edad<=60) ? 'chip ok' : 'chip warn';
+  c.textContent = `📍 ±${a} m` + (g.edad>60?' (vieja)':'');
+}
+setInterval(()=>{ if(gpsWatch!=null) chipGps(); }, 5000);
+function pintarGps(g){
+  const k=$('kvGps'); if(!k) return;
+  if(!g){ k.innerHTML='<b>Ubicación</b><span class="hl-warn">sin GPS en este escaneo</span>'; return; }
+  k.innerHTML=`<b>Latitud</b><span class="mono">${g.lat.toFixed(6)}</span>`+
+    `<b>Longitud</b><span class="mono">${g.lon.toFixed(6)}</span>`+
+    `<b>Precisión</b><span class="${g.acc>25?'hl-warn':''}">± ${Math.round(g.acc)} m${g.edad>60?` · de hace ${g.edad} s`:''}</span>`+
+    `<b>Finca</b><span>${!g.finca ? '<span style="color:#888">sin ubicación de finca fijada</span>'
+        : g.finca.fuera ? `<span class="hl-warn">a ${txtDist(g.finca.dist)} — fuera de la finca</span>`
+        : `<span class="hl-ok">dentro (a ${txtDist(g.finca.dist)})</span>`}</span>`+
+    `<b>Mapa</b><span><a class="gpslink" href="https://maps.google.com/?q=${g.lat.toFixed(6)},${g.lon.toFixed(6)}" target="_blank" rel="noopener">ver (con internet)</a></span>`;
+}
+
+
+/* ============================================================
+   UBICACIÓN DE LA FINCA — modo rastro
+   Cada finca se "fija" una vez, estando en ella: se promedian ~30 s de GPS
+   y se guarda con el nombre del Field Location del mapa. Cada escaneo
+   registra a qué distancia de ese punto se hizo.
+
+   Solo deja RASTRO: el veredicto nunca cambia por la ubicación. El GPS puede
+   equivocarse decenas de metros (árboles, paredes, recién encendido) y un
+   sobre correcto no se debe rechazar por eso.
+
+   Las fincas se guardan aparte: "Borrar todo" no las borra.
+   ============================================================ */
+const LS_FINCAS='siembraFincas_v1';
+const RADIO_FINCA_M = 300;     // más lejos que esto (más el error del GPS) = fuera de la finca
+let FIJADO_MS = 30000;
+let fincas = {}, fijando = null;
+
+async function cargarFincas(){
+  try{ const d=await idbGet(LS_FINCAS); if(d){ fincas=d; return; } }catch(e){}
+  // Primera vez: se copian las fincas ya fijadas en la app de siempre.
+  try{
+    const otra=await new Promise((res,rej)=>{ const r=indexedDB.open('siembraCampo',1);
+      r.onupgradeneeded=()=>r.result.createObjectStore('kv');
+      r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error); });
+    const d=await new Promise(res=>{ const q=otra.transaction('kv').objectStore('kv').get(LS_FINCAS);
+      q.onsuccess=()=>res(q.result); q.onerror=()=>res(null); });
+    otra.close();
+    if(d && Object.keys(d).length){ fincas=d; await idbPut(LS_FINCAS,d); log('Fincas copiadas de la app de siempre:', Object.keys(d).length); return; }
+  }catch(e){}
+  try{ fincas=JSON.parse(localStorage.getItem(LS_FINCAS)||'{}'); }catch(e){ fincas={}; }
+}
+async function guardarFincas(){
+  try{ await idbPut(LS_FINCAS, fincas); }
+  catch(e){ try{ localStorage.setItem(LS_FINCAS, JSON.stringify(fincas)); }catch(_){ log('No se pudo guardar la finca'); } }
+}
+function fincaActual(){
+  if(!mapa) return null;
+  const nombre=(mapa.loc||mapa.estudio||'').trim(); if(!nombre) return null;
+  return {clave: normLocal(nombre)||normLoose(nombre), nombre};
+}
+function refFinca(){ const f=fincaActual(); return f ? (fincas[f.clave]||null) : null; }
+
+function distanciaM(a,b){
+  const R=6371000, rad=x=>x*Math.PI/180;
+  const dLat=rad(b.lat-a.lat), dLon=rad(b.lon-a.lon);
+  const h=Math.sin(dLat/2)**2 + Math.cos(rad(a.lat))*Math.cos(rad(b.lat))*Math.sin(dLon/2)**2;
+  return 2*R*Math.asin(Math.sqrt(h));
+}
+function txtDist(m){ return m<1000 ? Math.round(m)+' m' : (m/1000).toFixed(m<10000?1:0)+' km'; }
+// Compara una posición contra la finca fijada. null si falta alguno de los dos.
+function evaluarFinca(g){
+  const ref=refFinca(); if(!ref || !g) return null;
+  const d=distanciaM(g,ref);
+  const limite = RADIO_FINCA_M + (g.acc||0) + (ref.acc||0);
+  return {dist:Math.round(d), fuera:d>limite, nombre:ref.nombre};
+}
+
+function iniciarFijado(){
+  const f=fincaActual();
+  if(!f){ alert('El mapa no trae el nombre de la finca (Field Location), así que no hay a qué asociar la ubicación.'); return; }
+  if(fincas[f.clave] && !confirm(`${f.nombre} ya tiene una ubicación fijada. ¿Reemplazarla por la de este lugar?`)) return;
+  if(gpsWatch==null) iniciarGps();
+  fijando={f, muestras:[], fin:Date.now()+FIJADO_MS};
+  if(gpsUltimo && Date.now()-gpsUltimo.t<5000) agregarMuestra(gpsUltimo);
+  fijando.timer=setInterval(()=>{ if(fijando && Date.now()>=fijando.fin) terminarFijado(); else pintarFinca(); }, 500);
+  pintarFinca();
+}
+function agregarMuestra(p){
+  if(!fijando || !p) return;
+  if(p.acc>50) return;                      // lecturas muy imprecisas no entran al promedio
+  const u=fijando.muestras[fijando.muestras.length-1];
+  if(u && u.t===p.t) return;                // misma lectura repetida
+  fijando.muestras.push({lat:p.lat, lon:p.lon, acc:p.acc, t:p.t});
+}
+function cancelarFijado(motivo){
+  if(!fijando) return;
+  clearInterval(fijando.timer); fijando=null;
+  if(motivo) log('Fijado de finca cancelado:', motivo);
+  pintarFinca();
+}
+function terminarFijado(){
+  const {f, muestras} = fijando; clearInterval(fijando.timer); fijando=null;
+  if(muestras.length<3){
+    alert(`Solo hubo ${muestras.length} lectura(s) con precisión mejor que 50 m. Sal a cielo abierto, lejos de árboles y techos, y vuelve a intentarlo.`);
+    pintarFinca(); return;
+  }
+  // Promedio ponderado: las lecturas más precisas pesan más.
+  let sw=0, la=0, lo=0;
+  muestras.forEach(m=>{ const w=1/(m.acc*m.acc); sw+=w; la+=m.lat*w; lo+=m.lon*w; });
+  const accs=muestras.map(m=>m.acc).sort((a,b)=>a-b);
+  fincas[f.clave]={ nombre:f.nombre, lat:la/sw, lon:lo/sw,
+                    acc:Math.round(accs[Math.floor(accs.length/2)]), n:muestras.length,
+                    fecha:new Date().toISOString() };
+  log('Finca fijada:', f.nombre, (la/sw).toFixed(6)+','+(lo/sw).toFixed(6), '±'+fincas[f.clave].acc+' m con', muestras.length, 'lecturas');
+  guardarFincas(); pintarFinca();
+}
+
+function pintarFinca(){
+  const bar=$('fincaBar'); if(!bar) return;
+  const f=fincaActual();
+  if(!f){ bar.style.display='none'; return; }
+  bar.style.display='';
+  if(fijando){
+    const falta=Math.max(0,Math.ceil((fijando.fin-Date.now())/1000));
+    const n=fijando.muestras.length;
+    bar.className='finca-bar midiendo';
+    bar.innerHTML=`<span class="ft">📌 Midiendo la ubicación de <b>${esc(f.nombre)}</b>… quédate quieto · ${falta} s · ${n} lectura${n===1?'':'s'}</span>`+
+      `<button class="btn-peligro chico" id="btnFincaCancel">Cancelar</button>`;
+    $('btnFincaCancel').onclick=()=>cancelarFijado('cancelado por el usuario');
+    return;
+  }
+  const ref=fincas[f.clave];
+  if(!ref){
+    bar.className='finca-bar sin';
+    bar.innerHTML=`<span class="ft">📌 <b>${esc(f.nombre)}</b> no tiene ubicación fijada. Hazlo una sola vez, estando en la finca.</span>`+
+      `<button class="btn-sec chico" id="btnFincaFijar">Fijar ubicación aquí</button>`;
+  } else {
+    const ev=evaluarFinca(gpsParaRegistro());
+    const fecha=new Date(ref.fecha).toLocaleDateString('es-GT');
+    const donde = !ev ? '' : (ev.fuera ? ` · <span class="hl-warn">estás a ${txtDist(ev.dist)}, fuera de la finca</span>`
+                                       : ` · <span class="hl-ok">estás a ${txtDist(ev.dist)}</span>`);
+    bar.className='finca-bar';
+    bar.innerHTML=`<span class="ft">📌 <b>${esc(f.nombre)}</b> fijada el ${fecha} (±${ref.acc} m)${donde}</span>`+
+      `<button class="btn-sec chico" id="btnFincaFijar">Volver a fijar</button>`;
+  }
+  $('btnFincaFijar').onclick=iniciarFijado;
+}
+
+/* ============================================================
+   ENVÍO A GOOGLE SHEETS (cola sin internet)
+   Cada escaneo se copia a una cola guardada en el teléfono y se envía
+   cuando hay señal, en lotes de 50, a un Apps Script publicado por
+   Alessandro (Codigo.gs). Si falla, reintenta con espera creciente
+   (15 s … 5 min) y al volver la señal.
+   - La cola vive en su propia base (siembraCampoEnvio): "Limpiar
+     historial" y "Borrar todo" no pierden lo que falta enviar.
+   - Cada escaneo lleva un uid fijo; el Apps Script ignora los
+     repetidos, así que un reintento nunca duplica filas.
+   - URL, clave y nombre se escriben una vez en cada tablet. No van en
+     el código porque el repositorio es público.
+   - La clave solo evita filas falsas de quien encuentre la URL; no
+     protege contra alguien que tenga la tablet en la mano.
+   ============================================================ */
+const ENV_DB='siembraCampoEnvio', ENV_T='kv', ENV_LOTE=50, ENV_TIMEOUT=25000;
+let envCfg={url:'', clave:'', tecnico:'', tabletId:''};
+let envCola=[], envVistos=new Set(), envListo=false, envEnviando=false, envEspera=0, envTimer=null;
+let envUltimo={cuando:0, texto:'Sin envíos todavía.', error:false};
+
+let _envDb=null;
+function envDb(){
+  if(_envDb) return _envDb;
+  _envDb=new Promise((res,rej)=>{
+    if(!('indexedDB' in window)) return rej(new Error('sin IndexedDB'));
+    const r=indexedDB.open(ENV_DB,1);
+    r.onupgradeneeded=()=>r.result.createObjectStore(ENV_T);
+    r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error);
+  });
+  _envDb.catch(()=>{ _envDb=null; });
+  return _envDb;
+}
+async function envPut(k,v){ const d=await envDb();
+  return new Promise((res,rej)=>{ const tx=d.transaction(ENV_T,'readwrite'); tx.objectStore(ENV_T).put(v,k);
+    tx.oncomplete=()=>res(); tx.onerror=()=>rej(tx.error); tx.onabort=()=>rej(tx.error); }); }
+async function envGet(k){ const d=await envDb();
+  return new Promise((res,rej)=>{ const r=d.transaction(ENV_T).objectStore(ENV_T).get(k);
+    r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error); }); }
+
+function envAzar(n){
+  const a=new Uint32Array(n);
+  if(window.crypto&&crypto.getRandomValues) crypto.getRandomValues(a); else for(let i=0;i<n;i++) a[i]=Math.random()*4294967296;
+  return Array.from(a,x=>(x>>>0).toString(36)).join('');
+}
+function envioUid(){ return Date.now().toString(36)+'-'+envAzar(2); }
+
+// uid para escaneos guardados antes de esta versión (no traen uid):
+// sale del contenido, así que encolarlos dos veces da el mismo uid.
+function envHash(s){
+  let h1=0xdeadbeef, h2=0x41c6ce57;
+  for(let i=0;i<s.length;i++){ const c=s.charCodeAt(i);
+    h1=Math.imul(h1^c,2654435761); h2=Math.imul(h2^c,1597334677); }
+  h1=Math.imul(h1^(h1>>>16),2246822507)^Math.imul(h2^(h2>>>13),3266489909);
+  h2=Math.imul(h2^(h2>>>16),2246822507)^Math.imul(h1^(h1>>>13),3266489909);
+  return (4294967296*(2097151&h2)+(h1>>>0)).toString(36);
+}
+
+// Una fila de la hoja: mismas columnas que el CSV, más estudio y localidad.
+function envFila(h,uid){
+  // Todas las columnas siempre presentes (vacías si no hay dato) para que la
+  // hoja las cree en el mismo orden del CSV.
+  const n6=x=>x==null?'':Math.round(x*1e6)/1e6, t=x=>x==null?'':x;
+  return {uid,
+    Capturado:h.ts?new Date(h.ts).toISOString():'',
+    Tablet:envCfg.tabletId, Tecnico:envCfg.tecnico,
+    Estudio:h.estudio!=null?h.estudio:((mapa&&mapa.estudio)||''),
+    Localidad:h.loc!=null?h.loc:((mapa&&mapa.loc)||''),
+    Fecha:h.fecha||'', Hora:h.hora||'', OBS_UNIT_ID:h.obs||'', Etiqueta_plot:t(h.etiqueta),
+    App:'Siembra Cruzas', Rol:t(h.rol), Fase:t(h.fase),
+    Plot:t(h.plot), Faja:t(h.faja), Surco:t(h.surco), GID:t(h.gid), Designation:t(h.desig), Entry:t(h.entry),
+    Resultado:h.nivel==='ok'?'CORRECTO':h.nivel==='warn'?'REVISAR':'INCORRECTO',
+    Latitud:n6(h.lat), Longitud:n6(h.lon), Precision_m:h.acc!=null?Math.round(h.acc):'',
+    Edad_GPS_s:t(h.gpsEdad), Finca:t(h.finca), Distancia_finca_m:t(h.distFinca),
+    Fuera_de_finca:h.fueraFinca==null?'':(h.fueraFinca?'SI':'NO'),
+    Ver_en_mapa:h.lat!=null?`https://maps.google.com/?q=${h.lat.toFixed(6)},${h.lon.toFixed(6)}`:'',
+    Detalle:h.detalle||''};
+}
+
+// Pone un escaneo en la cola. La marca _env viaja con el historial (guardar()).
+function envioEncolar(h){
+  if(!envListo||!h||h._env) return false;   // si la cola aún no cargó, lo toma el barrido de envioIniciar
+  const {_env, ...limpio}=h;
+  const uid=h.uid||(envCfg.tabletId+'-'+envHash(JSON.stringify(limpio)));
+  h._env=1;
+  if(envVistos.has(uid)) return false;
+  envVistos.add(uid);
+  envCola.push(envFila(h,uid));
+  envGuardarCola().then(envEnviar);
+  pintarEnvio();
+  return true;
+}
+async function envGuardarCola(){
+  try{ await envPut('colaCruzas',envCola); }
+  catch(e){ envUltimo={cuando:Date.now(), texto:'No se pudo guardar la cola: '+e.message, error:true}; log('Envío:',envUltimo.texto); }
+}
+
+function envConfigurado(){ return !!(envCfg.url&&envCfg.clave); }
+
+async function envPost(registros){
+  const ctl=('AbortController' in window)?new AbortController():null;
+  const t=ctl?setTimeout(()=>ctl.abort(),ENV_TIMEOUT):null;
+  try{
+    // text/plain: Apps Script no responde la consulta previa CORS que dispararía application/json.
+    const r=await fetch(envCfg.url,{method:'POST', redirect:'follow',
+      headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body:JSON.stringify({clave:envCfg.clave, registros}), signal:ctl?ctl.signal:undefined});
+    const txt=await r.text();
+    let d; try{ d=JSON.parse(txt); }
+    catch(e){ throw new Error('respuesta inesperada. Revisa que la URL termine en /exec y que el acceso sea "Cualquier persona"'); }
+    if(!d.ok) throw new Error(d.error||'error del script');
+    return d;
+  }catch(e){
+    if(e.name==='AbortError') throw new Error('sin respuesta en '+(ENV_TIMEOUT/1000)+' s');
+    if(e instanceof TypeError){
+      if(navigator.onLine===false) throw new Error('sin conexión a internet');
+      // Con internet, un TypeError casi siempre es que Google devolvió una página
+      // de error o de inicio de sesión en lugar de la respuesta del script.
+      throw new Error('Google no devolvió la respuesta del script. Casi siempre es la URL mal copiada '+
+        'o el script ya no está publicado para "Cualquier persona". Toca "Abrir URL": debe mostrar {"ok":true,…}');
+    }
+    throw e;
+  }finally{ if(t) clearTimeout(t); }
+}
+
+async function envEnviar(){
+  if(envEnviando||!envCola.length||!envConfigurado()||navigator.onLine===false){ pintarEnvio(); return; }
+  envEnviando=true; clearTimeout(envTimer); pintarEnvio();
+  try{
+    while(envCola.length){
+      const d=await envPost(envCola.slice(0,ENV_LOTE));
+      const ok=new Set((d.guardados||[]).map(String));
+      if(!ok.size) throw new Error('el script no confirmó ningún escaneo');
+      envCola=envCola.filter(r=>!ok.has(String(r.uid)));
+      await envGuardarCola();
+      envUltimo={cuando:Date.now(), texto:'Enviado: '+(d.nuevos||0)+' filas nuevas en la hoja.', error:false};
+      pintarEnvio();
+    }
+    envEspera=0;
+  }catch(e){
+    envEspera=Math.min(envEspera?envEspera*2:15000,300000);
+    envUltimo={cuando:Date.now(), texto:'No se envió: '+e.message+'. Reintento en '+Math.round(envEspera/1000)+' s.', error:true};
+    log('Envío:',envUltimo.texto);
+    envTimer=setTimeout(envEnviar,envEspera);
+  }finally{ envEnviando=false; pintarEnvio(); }
+}
+
+function pintarEnvio(){
+  const c=$('chipEnvio'); if(!c) return;
+  const n=envCola.length;
+  if(!envConfigurado()){ c.className='chip'+(n?' warn':''); c.textContent='☁ Configurar envío'+(n?' ('+n+')':''); }
+  else if(envEnviando){ c.className='chip warn'; c.textContent='☁ Enviando '+n+'…'; }
+  else if(!n){ c.className='chip ok'; c.textContent='☁ Al día'; }
+  else if(envUltimo.error){ c.className='chip bad'; c.textContent='☁ '+n+' sin enviar'; }
+  else { c.className='chip warn'; c.textContent='☁ '+n+' por enviar'; }
+  const e=$('envEst'); if(!e) return;
+  const lineas=[n?n+(n===1?' escaneo por enviar.':' escaneos por enviar.'):'No hay escaneos por enviar.'];
+  if(navigator.onLine===false) lineas.push('Sin internet: se envían solos al volver la señal.');
+  if(!envCfg.tecnico) lineas.push('Falta el nombre de la tablet o del técnico.');
+  lineas.push((envUltimo.cuando?new Date(envUltimo.cuando).toLocaleTimeString('es-GT')+' — ':'')+envUltimo.texto);
+  e.textContent=lineas.join('\n');
+  e.className=envUltimo.error?'bad':(envUltimo.cuando&&!n?'ok':'');
+}
+
+// Al copiar desde Word, WhatsApp o un PDF se cuelan caracteres invisibles
+// (espacio duro, guion suave, espacios de ancho cero, saltos de línea) que no
+// se ven pero cambian la URL o la clave. Se quitan antes de guardar.
+const RX_INVISIBLES=/[\u00AD\u200B-\u200F\u2028\u2029\u202A-\u202E\u2060-\u2064\uFEFF]/g;
+function limpiarCampo(v){
+  return String(v||'').replace(RX_INVISIBLES,'').replace(/[\u00A0\u2000-\u200A\u202F\u205F\u3000]/g,' ')
+    .replace(/^[\s"'“”‘’«»]+|[\s"'“”‘’«»]+$/g,'');
+}
+function limpiarUrl(v){
+  let u=limpiarCampo(v).replace(/\s+/g,'');          // una URL nunca lleva espacios
+  u=u.replace(/^http:\/\//i,'https://');
+  u=u.replace(/\/macros\/u\/\d+\/s\//,'/macros/s/');  // "/u/0/" de sesiones con varias cuentas
+  return u;
+}
+// Devuelve el problema con la URL en palabras, o '' si se ve bien.
+function problemaUrl(u){
+  if(!u) return 'falta la URL';
+  if(/\/dev(\?|$)/.test(u)) return 'la URL termina en /dev; usa la que termina en /exec (Implementar → Gestionar implementaciones)';
+  if(!/^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]{20,}\/exec(\?.*)?$/.test(u))
+    return 'la URL no tiene el formato correcto: debe empezar con https://script.google.com/macros/s/ y terminar en /exec';
+  return '';
+}
+let envLimpiados=0;
+async function envLeerForm(){
+  const crudos=[$('envUrl').value,$('envClave').value];
+  envCfg.tecnico=limpiarCampo($('envTec').value);
+  envCfg.url=limpiarUrl($('envUrl').value);
+  envCfg.clave=limpiarCampo($('envClave').value);
+  const inv=v=>(String(v).match(RX_INVISIBLES)||[]).length;
+  const esp=/[\s\u00A0\u2000-\u200A\u202F\u205F\u3000]/g;
+  envLimpiados = inv(crudos[0]) + (String(crudos[0]).match(esp)||[]).length      // en la URL sobra todo espacio
+               + inv(crudos[1]) + (String(crudos[1]).length - String(crudos[1]).replace(RX_INVISIBLES,'').trim().length - inv(crudos[1]));
+  // Se muestra lo que realmente quedó guardado.
+  $('envTec').value=envCfg.tecnico; $('envUrl').value=envCfg.url; $('envClave').value=envCfg.clave;
+  await envPut('cfg',envCfg);
+}
+function notaLimpieza(){
+  return envLimpiados>0 ? ` Se quitaron ${envLimpiados} caracteres invisibles o espacios que venían al copiar.` : '';
+}
+$('chipEnvio').onclick=()=>{
+  $('envTec').value=envCfg.tecnico; $('envUrl').value=envCfg.url; $('envClave').value=envCfg.clave;
+  pintarEnvio();
+  const d=$('envDlg'); if(d.showModal) d.showModal(); else d.setAttribute('open','');
+};
+$('envCerrar').onclick=()=>{ const d=$('envDlg'); if(d.close) d.close(); else d.removeAttribute('open'); };
+$('envGuardar').onclick=async()=>{
+  try{
+    await envLeerForm();
+    // Los escaneos aún no enviados toman el nombre nuevo.
+    envCola.forEach(r=>{ r.Tecnico=envCfg.tecnico; }); await envGuardarCola();
+    const pu=problemaUrl(envCfg.url);
+    envUltimo = pu ? {cuando:Date.now(), texto:'Guardado, pero '+pu+'.'+notaLimpieza(), error:true}
+                   : {cuando:Date.now(), texto:'Configuración guardada.'+notaLimpieza(), error:false};
+  }catch(e){ envUltimo={cuando:Date.now(), texto:'No se pudo guardar: '+e.message, error:true}; }
+  envEspera=0; pintarEnvio(); envEnviar();
+};
+$('envProbar').onclick=async()=>{
+  try{ await envLeerForm(); }catch(e){}
+  if(!envConfigurado()){ envUltimo={cuando:Date.now(), texto:'Falta la URL o la clave.', error:true}; pintarEnvio(); return; }
+  const pu=problemaUrl(envCfg.url);
+  if(pu){ envUltimo={cuando:Date.now(), texto:'Falló la prueba: '+pu+'.'+notaLimpieza(), error:true}; pintarEnvio(); return; }
+  envUltimo={cuando:Date.now(), texto:'Probando…', error:false}; pintarEnvio();
+  try{ await envPost([]); envUltimo={cuando:Date.now(), texto:'Conexión correcta: la URL y la clave funcionan.'+notaLimpieza(), error:false}; }
+  catch(e){
+    const msg = /clave incorrecta/i.test(e.message)
+      ? 'la clave no coincide con la del script. Toca "Mostrar clave" y revisa mayúsculas y minúsculas (Word suele poner la primera letra en mayúscula)'
+      : e.message;
+    envUltimo={cuando:Date.now(), texto:'Falló la prueba: '+msg+'.'+notaLimpieza(), error:true};
+  }
+  pintarEnvio();
+};
+$('envAhora').onclick=()=>{ envEspera=0; envEnviar(); };
+$('envVerClave').onchange=e=>{ $('envClave').type=e.target.checked?'text':'password'; };
+// Abre la URL tal como quedó guardada: si el script está bien publicado se ve
+// {"ok":true,"servicio":"SiembraCampo",...}; si pide iniciar sesión o da error,
+// el problema es la URL o el permiso del script, no la app.
+$('envAbrir').onclick=()=>{
+  const u=limpiarUrl($('envUrl').value);
+  if(!u){ envUltimo={cuando:Date.now(), texto:'Escribe la URL primero.', error:true}; pintarEnvio(); return; }
+  window.open(u,'_blank','noopener');
+};
+window.addEventListener('online',()=>{ envEspera=0; envEnviar(); });
+window.addEventListener('offline',pintarEnvio);
+document.addEventListener('visibilitychange',()=>{ if(!document.hidden) envEnviar(); });
+
+// Se llama al abrir, después de restaurar(): carga la cola y encola lo que
+// esté en el historial y aún no se haya mandado (incluye escaneos anteriores
+// a esta versión).
+async function envioIniciar(){
+  try{
+    const c=await envGet('cfg'); if(c) envCfg=Object.assign(envCfg,c);
+    const q=await envGet('colaCruzas'); if(Array.isArray(q)) envCola=q;
+  }catch(e){ envUltimo={cuando:Date.now(), texto:'Almacenamiento no disponible: '+e.message, error:true}; log('Envío:',envUltimo.texto); }
+  if(!envCfg.tabletId){ envCfg.tabletId='t'+envAzar(2); try{ await envPut('cfg',envCfg); }catch(e){} }
+  envCola.forEach(r=>envVistos.add(String(r.uid)));
+  envListo=true;
+  let marcados=0;
+  for(let i=historial.length-1;i>=0;i--){ const h=historial[i]; if(h&&!h._env){ envioEncolar(h); marcados++; } }
+  if(marcados) guardar();
+  pintarEnvio();
+  envEnviar();
+}
+
+/* ============================================================
+   SIN INTERNET
+   El service worker (sw.js, junto a esta página) guarda la página y las
+   librerías en el teléfono la primera vez que se abre con internet. Después
+   abre aunque no haya señal.
+   ============================================================ */
+let swListo=false;
+function chipRed(){
+  const c=$('chipRed'); if(!c) return;
+  if(!guardadoOk){ c.className='chip bad'; c.textContent='⚠ no se pudo guardar'; return; }
+  if(navigator.onLine){
+    c.className = swListo?'chip ok':'chip';
+    c.textContent = swListo?'● en línea · lista sin internet':'● en línea';
+    c.title = swListo?'La página ya está guardada en el teléfono':'Preparando para funcionar sin internet…';
+  } else {
+    c.className = swListo?'chip warn':'chip bad';
+    c.textContent = swListo?'○ sin internet · funcionando':'○ sin internet';
+  }
+}
+window.addEventListener('online', chipRed);
+window.addEventListener('offline', chipRed);
+
+async function prepararSinConexion(){
+  if(!('serviceWorker' in navigator)){ log('Este navegador no tiene service worker: la página necesita internet para abrir.'); chipRed(); return; }
+  try{
+    const reg = await navigator.serviceWorker.register('sw.js');
+    await navigator.serviceWorker.ready;
+    swListo = !!(reg.active || navigator.serviceWorker.controller);
+    log('Service worker activo. Alcance:', reg.scope);
+  }catch(e){ log('No se pudo registrar sw.js:', e&&e.message, '— ¿está subido junto a esta página?'); }
+  // Pide al navegador que no borre los datos guardados si falta espacio.
+  try{ if(navigator.storage && navigator.storage.persist){
+    const ya = await navigator.storage.persisted();
+    const p = ya || await navigator.storage.persist();
+    log('Almacenamiento persistente:', p);
+    if(navigator.storage.estimate){ const e=await navigator.storage.estimate();
+      log('Espacio usado:', (e.usage/1048576).toFixed(1)+' MB de', (e.quota/1048576).toFixed(0)+' MB'); }
+  }}catch(e){}
+  chipRed();
+}
+
+(async()=>{
+  if($('verApp')) $('verApp').textContent='Versión '+VERSION_APP;
+  log('Versión', VERSION_APP);
+  await cargarFincas();
+  await restaurar();
+  pintarSiembras(); pintarFase();
+  await envioIniciar();
+  aplicarVista();
+  chipArchivos();
+  if(estadoArchivos().listos===2) irTab(tabGuardada && tabGuardada!=='carga' ? tabGuardada : 'escaneo');
+  chipRed();
+  prepararSinConexion();
+})();
+</script>
+</body>
+</html>

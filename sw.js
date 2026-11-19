@@ -9,7 +9,9 @@ const VERSION = 'siembracampo-v1';
 
 const BASE = self.registration.scope;              // https://semillanueva.github.io/SiembraCampo/
 const PAGINA = new URL('index.html', BASE).href;
-const PROPIOS = [PAGINA, new URL('manifest.webmanifest', BASE).href, new URL('icon.svg', BASE).href];
+const PROPIOS = [PAGINA, new URL('manifest.webmanifest', BASE).href, new URL('icon.svg', BASE).href,
+  // App aparte para Cross y Self (Siembra Cruzas)
+  new URL('cruzas.html', BASE).href, new URL('cruzas.webmanifest', BASE).href, new URL('icon-cruzas.svg', BASE).href];
 const LIBS = [
   'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js',
   'https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js'

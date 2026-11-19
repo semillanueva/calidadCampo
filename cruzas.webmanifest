@@ -1,0 +1,16 @@
+{
+  "id": "./cruzas.html",
+  "name": "Siembra Cruzas — Cross y Self",
+  "short_name": "Siembra Cruzas",
+  "description": "Verificación de siembra para viveros Cross (machos y hembras) y Self.",
+  "start_url": "./cruzas.html",
+  "scope": "./cruzas.html",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#ffffff",
+  "theme_color": "#1f6f43",
+  "lang": "es",
+  "icons": [
+    { "src": "icon-cruzas.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}
